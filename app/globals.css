@@ -1,0 +1,311 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* --------------------------------------------------------------------------
+   Palette
+   --fo-gradient is written onto <body> from product.gradient in layout.tsx,
+   so the data layer stays the single source of truth for the brand ground.
+   -------------------------------------------------------------------------- */
+:root {
+  --fo-gradient: linear-gradient(135deg, #0a0e13 0%, #2c3e4c 100%);
+  --fo-ice: #bfd3e0;
+  --fo-ink: #05070a;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background: var(--fo-gradient) fixed;
+    color: #e8edf2;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
+  }
+
+  ::selection {
+    background: var(--fo-ice);
+    color: var(--fo-ink);
+  }
+
+  ::-moz-selection {
+    background: var(--fo-ice);
+    color: var(--fo-ink);
+  }
+
+  /* An app-like scrollbar: present enough to orient, quiet enough to ignore. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(191, 211, 224, 0.18) transparent;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: rgba(191, 211, 224, 0.18);
+    border-radius: 999px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(191, 211, 224, 0.32);
+  }
+
+  /* Focus rings stay visible for keyboard users, invisible for mouse users. */
+  :focus-visible {
+    outline: 1px solid rgba(191, 211, 224, 0.7);
+    outline-offset: 3px;
+  }
+}
+
+@layer utilities {
+  /* Platinum -> ice blue, used on the wordmark and display headings.
+   *
+   * The padding is load-bearing, not decoration. `background-clip: text` paints
+   * the gradient only inside the element's padding box; the glyphs themselves
+   * are transparent. Display headings here run at line-height 0.95-1.05, which
+   * makes the padding box shorter than the type, so descenders on g/p/y/j/q
+   * fall outside it, receive no paint, and read as sliced off. Extending the
+   * box downward fixes it, and the matching negative margin keeps every layout
+   * that depends on this class exactly where it was. */
+  .text-metal {
+    background-image: linear-gradient(180deg, #ffffff 0%, #e8edf2 38%, #bfd3e0 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    padding-bottom: 0.18em;
+    margin-bottom: -0.18em;
+  }
+
+  /* Full-screen stages.
+   *
+   * 100vh on iOS is the *large* viewport — the height with the browser chrome
+   * hidden — so a 100vh stage is taller than what you can actually see while
+   * the address bar is showing, and its bottom is cut off. svh is the small
+   * viewport: always fully visible, and unlike dvh it does not change while
+   * scrolling, which matters because a resize forces the canvas to repaint.
+   * The vh line stays first as the fallback for browsers without svh. */
+  .h-stage {
+    height: 100vh;
+    height: 100svh;
+  }
+
+  .min-h-stage {
+    min-height: 100vh;
+    min-height: 100svh;
+  }
+
+  /* The opening: one stage of height plus a short run of scroll travel —
+   * enough for the side plates to glide in, never long enough to feel like
+   * the page is being held hostage. */
+  .h-hero {
+    height: 175vh;
+    height: 175svh;
+  }
+
+  /* Film grain, rasterised once from an SVG noise filter and tiled. Static on
+   * purpose: an animated grain repaints the whole viewport every frame. */
+  .bg-grain {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.55 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-size: 180px 180px;
+  }
+
+  /* The same grain set moving, for the entrance tremble only. Stepped, so it
+   * jumps between positions like emulsion in a projector gate rather than
+   * sliding; the element is drawn oversized so a jump never shows an edge. */
+  .animate-fo-grain-boil {
+    animation: fo-grain-boil 0.45s steps(1, end) infinite;
+  }
+
+  /* The running line: one opening pass, then the loop takes over at exactly
+   * the point the pass ends — same speed, so the hand-off cannot be seen.
+   * Both read --marquee-inset (the width of the edge fades) and
+   * --marquee-loop (seconds per run) from the band. */
+  .animate-fo-marquee-run {
+    animation:
+      fo-marquee-intro var(--marquee-loop) linear both,
+      fo-marquee-loop var(--marquee-loop) linear var(--marquee-loop) infinite;
+  }
+
+  /* Notch and home-indicator clearance. Meaningful only because the viewport
+   * is declared viewport-fit: cover; otherwise these resolve to 0. */
+  .pt-safe {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .inset-x-safe {
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+  }
+
+  .scrollbar-none {
+    scrollbar-width: none;
+  }
+
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Age gate atmosphere
+   Everything here animates transform and opacity only, so the whole scene
+   runs on the compositor — no layout, no paint, even on a phone.
+   -------------------------------------------------------------------------- */
+@keyframes fo-mist {
+  from {
+    transform: translate3d(-12%, 0, 0);
+  }
+  to {
+    transform: translate3d(12%, 0, 0);
+  }
+}
+
+@keyframes fo-flicker {
+  0%,
+  100% {
+    opacity: 0.9;
+  }
+  18% {
+    opacity: 1;
+  }
+  32% {
+    opacity: 0.78;
+  }
+  47% {
+    opacity: 0.96;
+  }
+  63% {
+    opacity: 0.84;
+  }
+  81% {
+    opacity: 1;
+  }
+}
+
+@keyframes fo-ember {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  70% {
+    opacity: 0.75;
+  }
+  100% {
+    transform: translate3d(var(--fo-drift, 24px), -82vh, 0) scale(0.35);
+    opacity: 0;
+  }
+}
+
+/* A long, shallow S across the sky — bats glide far more than they flap. */
+@keyframes fo-bat-fly {
+  0% {
+    transform: translate3d(-12vw, 0, 0) rotate(-4deg);
+  }
+  25% {
+    transform: translate3d(22vw, -3vh, 0) rotate(3deg);
+  }
+  50% {
+    transform: translate3d(52vw, 2vh, 0) rotate(-2deg);
+  }
+  75% {
+    transform: translate3d(82vw, -2vh, 0) rotate(4deg);
+  }
+  100% {
+    transform: translate3d(116vw, 1vh, 0) rotate(-3deg);
+  }
+}
+
+@keyframes fo-bat-flap {
+  from {
+    transform: scaleY(1);
+  }
+  to {
+    transform: scaleY(0.42);
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Running line
+   The track holds four identical runs, so 25% is exactly one run. The opening
+   pass starts with the first run's first word at the inner edge of the left
+   fade and nothing before it; the loop then cycles one run at a time, and with
+   four copies the right edge stays covered on the widest screens.
+   -------------------------------------------------------------------------- */
+@keyframes fo-marquee-intro {
+  from {
+    transform: translate3d(var(--marquee-inset), 0, 0);
+  }
+  to {
+    transform: translate3d(calc(var(--marquee-inset) - 25%), 0, 0);
+  }
+}
+
+@keyframes fo-marquee-loop {
+  from {
+    transform: translate3d(calc(var(--marquee-inset) - 25%), 0, 0);
+  }
+  to {
+    transform: translate3d(calc(var(--marquee-inset) - 50%), 0, 0);
+  }
+}
+
+@keyframes fo-grain-boil {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  20% {
+    transform: translate3d(-4%, 3%, 0);
+  }
+  40% {
+    transform: translate3d(3%, -4%, 0);
+  }
+  60% {
+    transform: translate3d(-3%, -2%, 0);
+  }
+  80% {
+    transform: translate3d(4%, 4%, 0);
+  }
+}
+
+@keyframes fo-sway {
+  from {
+    transform: rotate(-1.4deg);
+  }
+  to {
+    transform: rotate(1.4deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  /* The running line holds its opening composition instead of moving. */
+  .animate-fo-marquee-run {
+    animation: none;
+    transform: translate3d(var(--marquee-inset), 0, 0);
+  }
+}

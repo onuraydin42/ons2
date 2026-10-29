@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+
+# Trade portal — reachable by direct URL only.
+Disallow: /order

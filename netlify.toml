@@ -1,0 +1,51 @@
+# Netlify Drop reads this from the deploy root. It is the belt to public/_headers'
+# braces: _headers covers a plain drag-and-drop of out/, this covers a build
+# wired to the repo.
+
+[build]
+  command = "npm run build"
+  publish = "out"
+
+# --- HTTPS ---------------------------------------------------------------
+# Netlify issues a certificate and serves HTTPS automatically; what it does not
+# do by default is stop a browser from trying http:// first. These force it.
+
+[[redirects]]
+  from = "http://www.fluidounce.co/*"
+  to = "https://www.fluidounce.co/:splat"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "http://fluidounce.co/*"
+  to = "https://www.fluidounce.co/:splat"
+  status = 301
+  force = true
+
+# Apex to www, so there is one canonical origin and one cookie scope.
+[[redirects]]
+  from = "https://fluidounce.co/*"
+  to = "https://www.fluidounce.co/:splat"
+  status = 301
+  force = true
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Strict-Transport-Security = "max-age=63072000; includeSubDomains; preload"
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=(), interest-cohort=()"
+    Content-Security-Policy = "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self' https://api.web3forms.com; img-src 'self' data: blob:; font-src 'self' https://fonts.gstatic.com; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' https://api.web3forms.com; upgrade-insecure-requests"
+    Set-Cookie = "Path=/; Secure; HttpOnly; SameSite=Strict"
+
+[[headers]]
+  for = "/images/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/_next/static/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"

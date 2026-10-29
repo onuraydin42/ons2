@@ -1,0 +1,45 @@
+# Netlify reads this file from the deploy root. Because the site is a static
+# export, public/ is copied verbatim into out/, so this ships as out/_headers.
+#
+# Netlify terminates TLS and serves every deploy over HTTPS already; these
+# headers are what stop a browser from ever *trying* plain HTTP again, and what
+# constrain what the page is allowed to do once it is loaded.
+
+/*
+  # Force HTTPS for two years, including subdomains, and allow preloading into
+  # the browsers' built-in HSTS list. After the first visit the browser will
+  # refuse to make an http:// request to this host at all.
+  Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
+
+  # The site sets no cookies at all — the age gate is React state, there is no
+  # analytics and no session. This is belt and braces: if anything ever does set
+  # one, upgrade-insecure-requests guarantees it is only ever sent over TLS, and
+  # the policy below blocks the injected third-party script that would read it.
+  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self' https://api.web3forms.com; img-src 'self' data: blob:; font-src 'self' https://fonts.gstatic.com; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' https://api.web3forms.com; upgrade-insecure-requests
+
+  # Clickjacking and MIME-sniffing.
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+
+  # Nothing here needs hardware. Denying it outright means a compromised
+  # dependency cannot quietly ask for it either.
+  Permissions-Policy: accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=(), interest-cohort=()
+
+  # Any cookie this site ever sets must be TLS-only, unreadable to scripts, and
+  # not sent on cross-site requests.
+  Set-Cookie: Path=/; Secure; HttpOnly; SameSite=Strict
+
+# Fingerprinted build output is safe to cache forever.
+/_next/static/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# Photography never changes without a rebuild, so it is worth caching hard —
+# this is what stops a second visit re-downloading it.
+/images/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/logo.png
+  Cache-Control: public, max-age=604800
+/logo-mark.png
+  Cache-Control: public, max-age=604800
