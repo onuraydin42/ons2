@@ -1,13 +1,15 @@
 import type { Metadata } from "next";
 
 import LegalPage from "@/components/LegalPage";
-import { LEGAL_UPDATED, TERMS } from "@/data/legal";
+import { TERMS } from "@/data/legal";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
-  title: "Terms of Use | FLUID OUNCE",
-  description: "The terms that apply to using the FLUID OUNCE website.",
-};
+export const metadata: Metadata = pageMetadata({
+  title: TERMS.title,
+  description: TERMS.intro,
+  path: "/terms/",
+});
 
 export default function TermsPage() {
-  return <LegalPage kicker="Legal" title="Terms of Use" updated={LEGAL_UPDATED} sections={TERMS} />;
+  return <LegalPage document={TERMS} />;
 }

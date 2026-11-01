@@ -5,9 +5,14 @@
  *
  *  1. Moves the source photography out of the image folder into public/images/
  *     (cocktails/ + editorial/) as .webp.
- *  2. Copies the bottle film into public/media/.
+ *  2. Writes the share card, public/og.jpg (1200x630), from the boxed
+ *     presentation photograph.
  *  3. Keys the solid white background out of the brand logo and writes
- *     public/logo.png, public/favicon.ico and public/apple-touch-icon.png.
+ *     public/logo.png, logo-mark.png, logo-mark-ink.png, favicon.ico and
+ *     apple-touch-icon.png.
+ *
+ * The turning bottle (images2/rotate.mp4) has its own step, because it needs
+ * ffmpeg: npm run build-bottle (scripts/build-bottle.mjs).
  */
 
 import fs from "node:fs";
@@ -23,10 +28,6 @@ const PUBLIC = path.join(ROOT, "public");
 
 const WEBP_QUALITY = 88;
 
-/* Ambient wash behind the Collection stage — pre-blurred so the browser never
- * has to run a large CSS blur while switching cocktails. */
-const BLUR_PLATE_WIDTH = 40;
-
 /* The photo source folder is called `image2` in some drops and `images2` in
  * others, and the extensions vary (.jpg / .jpeg / .png). Both are detected. */
 const PHOTO_DIR_CANDIDATES = ["image2", "images2"];
@@ -37,19 +38,23 @@ const COCKTAILS = ["cosmo", "velvet", "blonde", "vesper"];
 const EDITORIAL = ["glass", "lux", "lux2", "boxx"];
 const IMAGE_EXTS = [".webp", ".png", ".jpg", ".jpeg", ".jfif", ".avif", ".tif", ".tiff"];
 
-/* The rotating-bottle film: the opening, the Restaurant presentation on
- * /order, and the media page all play it. It ships as-is — it is already a
- * lean H.264 file and there is no encoder in this toolchain. Its poster,
- * public/media/rotate-poster.webp, is the film's first frame; if the film is
- * ever replaced, export a new first frame over it so the two still match. */
-const FILMS = ["rotate"];
-const VIDEO_EXTS = [".mp4"];
+/* The share card: the size Facebook, X, LinkedIn and iMessage all crop to. */
+const SHARE = { width: 1200, height: 630, source: "boxx" };
 
 /* Anything with every channel at or above WHITE_MAX is background and becomes
  * fully transparent; the band down to WHITE_MIN ramps out so antialiased glyph
  * edges keep a soft shoulder instead of turning into stair-steps. */
 const WHITE_MAX = 245;
 const WHITE_MIN = 230;
+
+/* The ink rendition of the mark: the `ink` token, and how much heavier than the
+ * foil mark it is drawn. Its alpha is blurred by this sigma (in source pixels)
+ * and re-cut at this level (of 255) over this ramp; these move each edge out by
+ * about 3.5 source pixels. */
+const INK_MARK_COLOUR = "#141210";
+const INK_MARK_SIGMA = 6;
+const INK_MARK_LEVEL = 71;
+const INK_MARK_RAMP = 26;
 
 const log = (...a) => console.log(...a);
 
@@ -101,48 +106,27 @@ async function buildPhotos(photoDir) {
       await sharp(src).webp({ quality: WEBP_QUALITY }).toFile(dest);
       const { width, height } = await sharp(dest).metadata();
       log(`[photos] ${label}/${stem}.webp  ${width}x${height}`);
-
-      /* The Collection section puts a hugely blurred copy of the active card
-       * behind it as an ambient wash. Doing that with a CSS filter means the
-       * browser re-blurs a 1086x1448 bitmap at full-viewport size on every
-       * switch, which is what made changing cocktails feel slow.
-       *
-       * Blurring here instead, at 40px wide, turns that into a ~1KB image the
-       * GPU simply stretches. Same look, none of the per-switch cost. */
-      if (label === "cocktails") {
-        const blurDest = path.join(dir, `${stem}-blur.webp`);
-        await sharp(src)
-          .resize({ width: BLUR_PLATE_WIDTH })
-          .blur(6)
-          .webp({ quality: 72 })
-          .toFile(blurDest);
-        const bytes = (await fsp.stat(blurDest)).size;
-        log(`[photos] ${label}/${stem}-blur.webp  ${BLUR_PLATE_WIDTH}px  ${bytes} B`);
-      }
     }
   }
 }
 
-/* ------------------------------------------------------------------- films */
+/* ------------------------------------------------------------- share card */
 
-async function buildFilms(photoDir) {
+/**
+ * The image a link to the site unfurls with. JPEG rather than WebP: every
+ * network and messenger reads it. Cropped from the centre of the boxed
+ * presentation, which keeps the bottle and both boxes in frame.
+ */
+async function buildShareImage(photoDir) {
   const files = await fsp.readdir(photoDir);
-  const mediaDir = path.join(PUBLIC, "media");
-  await ensureDir(mediaDir);
-
-  for (const stem of FILMS) {
-    const hit = files.find(
-      (f) =>
-        path.basename(f, path.extname(f)).toLowerCase() === stem &&
-        VIDEO_EXTS.includes(path.extname(f).toLowerCase()),
-    );
-    if (!hit) throw new Error(`Missing source film for "${stem}".`);
-
-    const dest = path.join(mediaDir, `${stem}${path.extname(hit).toLowerCase()}`);
-    await fsp.copyFile(path.join(photoDir, hit), dest);
-    const bytes = (await fsp.stat(dest)).size;
-    log(`\n[films]  media/${path.basename(dest)}  ${(bytes / 1024 / 1024).toFixed(1)} MB`);
-  }
+  const src = path.join(photoDir, findByStem(files, SHARE.source));
+  const dest = path.join(PUBLIC, "og.jpg");
+  await sharp(src)
+    .resize(SHARE.width, SHARE.height, { fit: "cover", position: "centre" })
+    .jpeg({ quality: 86, mozjpeg: true })
+    .toFile(dest);
+  const bytes = (await fsp.stat(dest)).size;
+  log(`\n[share]  public/og.jpg  ${SHARE.width}x${SHARE.height}  ${(bytes / 1024).toFixed(0)} KB`);
 }
 
 /* -------------------------------------------------------------------- logo */
@@ -248,6 +232,34 @@ async function buildLogo(photoDir) {
   await fsp.writeFile(path.join(PUBLIC, "logo-mark.png"), markPng);
   log(`[logo]   public/logo-mark.png  ${markMeta.width}x${markMeta.height}`);
 
+  // The same monogram in ink, for the stone grounds, and heavier: the hairlines
+  // of the O and the Z would otherwise thin to nothing at navbar size. Blurring
+  // the alpha and re-cutting it at a low level pushes every edge outward and
+  // leaves it crisp. Twice the navbar's 64px, so it lands on whole pixels at 1x
+  // and 2x.
+  const inkHeight = 128;
+  const inkWidth = Math.round((markMeta.width / markMeta.height) * inkHeight);
+  const inkGain = 255 / INK_MARK_RAMP;
+  // Two pipelines, because sharp resizes before it blurs within one.
+  const heavierAlpha = await sharp(markPng)
+    .extractChannel("alpha")
+    .blur(INK_MARK_SIGMA)
+    .linear(inkGain, -inkGain * INK_MARK_LEVEL)
+    .png()
+    .toBuffer();
+  const markAlpha = await sharp(heavierAlpha)
+    .resize(inkWidth, inkHeight, { kernel: "lanczos3" })
+    .png()
+    .toBuffer();
+  const inkPng = await sharp({
+    create: { width: inkWidth, height: inkHeight, channels: 3, background: INK_MARK_COLOUR },
+  })
+    .joinChannel(markAlpha)
+    .png({ compressionLevel: 9 })
+    .toBuffer();
+  await fsp.writeFile(path.join(PUBLIC, "logo-mark-ink.png"), inkPng);
+  log(`[logo]   public/logo-mark-ink.png  ${inkWidth}x${inkHeight}`);
+
   // Square, transparent, contain-fit renditions for the icon set. The monogram
   // is used here for the same legibility reason as the navbar.
   const square = (size) =>
@@ -333,7 +345,7 @@ async function main() {
   const photoDir = resolvePhotoDir();
 
   await buildPhotos(photoDir);
-  await buildFilms(photoDir);
+  await buildShareImage(photoDir);
   const dims = await buildLogo(photoDir);
   await patchBrandDimensions(dims);
 

@@ -20,7 +20,9 @@
 
 export const FORM_ENDPOINT = process.env.NEXT_PUBLIC_FORM_ENDPOINT ?? "";
 export const FORM_ACCESS_KEY = process.env.NEXT_PUBLIC_FORM_ACCESS_KEY ?? "";
-export const CONTACT_EMAIL = process.env.NEXT_PUBLIC_CONTACT_EMAIL ?? "orders@fluidounce.co";
+/* The live site's address. `||` rather than `??`, so a variable that is set
+ * but left empty still falls back to it. */
+export const CONTACT_EMAIL = process.env.NEXT_PUBLIC_CONTACT_EMAIL || "info@fluidounce.co";
 
 export type SubmitState = "idle" | "submitting" | "success" | "error";
 

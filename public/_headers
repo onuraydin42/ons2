@@ -39,6 +39,11 @@
 /images/*
   Cache-Control: public, max-age=31536000, immutable
 
+# The bottle's spin frames and film: the heaviest bytes on the site, and just
+# as fixed.
+/media/*
+  Cache-Control: public, max-age=31536000, immutable
+
 /logo.png
   Cache-Control: public, max-age=604800
 /logo-mark.png

@@ -29,6 +29,25 @@
   status = 301
   force = true
 
+# --- The pages of the site this one replaces -----------------------------
+# Same rules as public/_redirects: the old .html addresses move permanently
+# to the new pages, keeping their links and search standing.
+
+[[redirects]]
+  from = "/terms.html"
+  to = "/terms/"
+  status = 301
+
+[[redirects]]
+  from = "/privacy.html"
+  to = "/privacy/"
+  status = 301
+
+[[redirects]]
+  from = "/discover.html"
+  to = "/discover/"
+  status = 301
+
 [[headers]]
   for = "/*"
   [headers.values]
@@ -42,6 +61,11 @@
 
 [[headers]]
   for = "/images/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/media/*"
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
 

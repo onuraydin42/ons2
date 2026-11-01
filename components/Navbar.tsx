@@ -6,42 +6,24 @@ import { usePathname } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
 
+import SocialIcons from "@/components/SocialIcons";
 import { useSmoothScroll } from "@/components/SmoothScroll";
-import { MARK_HEIGHT, MARK_SRC, MARK_WIDTH } from "@/lib/brand";
+import { BRAND, CONTACT, NAV_LEFT, NAV_RIGHT, type NavLink } from "@/data/site";
+import { MARK_HEIGHT, MARK_INK_SRC, MARK_WIDTH } from "@/lib/brand";
 import { EASE_OUT_EXPO } from "@/lib/motion";
-import { CONTACT_EMAIL } from "@/lib/submitForm";
+import { samePath, useGlideLink } from "@/lib/useGlideLink";
 
-interface NavLink {
-  label: string;
-  href: string;
-}
+const ALL_LINKS = [...NAV_LEFT, ...NAV_RIGHT];
 
-/* Left of the mark: the page itself, in the order you scroll through it. */
-const SECTION_LINKS: NavLink[] = [
-  { label: "Home", href: "/" },
-  { label: "Discover", href: "/#discover" },
-  { label: "Collection", href: "/#collection" },
-  { label: "Craft", href: "/#craft" },
-];
-
-/* Right of the mark: getting in touch, the small print, and press.
- * Nothing here is for sale, so there is still no call to action — and the
- * trade portal is never linked. */
-const INFO_LINKS: NavLink[] = [
-  { label: "Contact", href: "/#contact" },
-  { label: "Terms", href: "/terms/" },
-  { label: "Privacy", href: "/privacy/" },
-  { label: "Media", href: "/media/" },
-];
-
-const ALL_LINKS = [...SECTION_LINKS, ...INFO_LINKS];
-
-/** trailingSlash means a route can show up as "/terms" or "/terms/". */
-const samePath = (a: string, b: string) => a.replace(/\/$/, "") === b.replace(/\/$/, "");
-
+/**
+ * The live site's navigation — Home, Discover, Contact to the left of the
+ * mark; Terms, Privacy and Media (the brand's Instagram) to the right. The
+ * trade portal is never linked.
+ */
 export default function Navbar() {
   const pathname = usePathname();
   const smooth = useSmoothScroll();
+  const glide = useGlideLink();
   const [lifted, setLifted] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const closeRef = useRef<HTMLButtonElement>(null);
@@ -59,7 +41,10 @@ export default function Navbar() {
   useEffect(() => {
     if (!menuOpen) return;
 
-    const previous = document.body.style.overflow;
+    // On <html> as well as <body>: mobile Safari only honours it there.
+    const root = document.documentElement;
+    const previous = { html: root.style.overflow, body: document.body.style.overflow };
+    root.style.overflow = "hidden";
     document.body.style.overflow = "hidden";
     smooth.stop();
     closeRef.current?.focus();
@@ -75,7 +60,8 @@ export default function Navbar() {
     window.addEventListener("keydown", onKeyDown);
     wide.addEventListener("change", onWide);
     return () => {
-      document.body.style.overflow = previous;
+      root.style.overflow = previous.html;
+      document.body.style.overflow = previous.body;
       smooth.start();
       window.removeEventListener("keydown", onKeyDown);
       wide.removeEventListener("change", onWide);
@@ -85,83 +71,81 @@ export default function Navbar() {
   // A new page always arrives with the menu shut.
   useEffect(() => setMenuOpen(false), [pathname]);
 
-  /**
-   * In-page links glide; they never teleport.
-   *
-   * A link that points at the page already on screen is taken over and handed
-   * to Lenis; a link to another page is left to the router. The scroll waits
-   * two frames so that, when the phone menu is closing, Lenis has been started
-   * again first — a stopped Lenis ignores scrollTo.
-   */
-  const onLinkClick = (event: React.MouseEvent<HTMLAnchorElement>, href: string) => {
-    // Let new-tab and new-window clicks through untouched.
-    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) {
-      return;
-    }
-
+  /* Every link shuts the phone menu; in-page links then glide (useGlideLink),
+   * and the Instagram link opens in a new tab. */
+  const onLinkClick = (event: React.MouseEvent<HTMLAnchorElement>, link: NavLink) => {
     setMenuOpen(false);
-
-    const [path, hash] = href.split("#");
-    if (!samePath(path || "/", pathname)) return;
-
-    event.preventDefault();
-    const target = hash ? document.getElementById(hash) : null;
-    if (hash && !target) return;
-
-    window.requestAnimationFrame(() =>
-      window.requestAnimationFrame(() => smooth.scrollTo(target ?? 0)),
-    );
+    if (!link.external) glide(event, link.href);
   };
 
   /** Only real pages are ever "current" — sections are places on one page. */
-  const isCurrent = (href: string) =>
-    href !== "/" && !href.includes("#") && samePath(href, pathname);
+  const isCurrent = (link: NavLink) =>
+    !link.external && link.href !== "/" && !link.href.includes("#") && samePath(link.href, pathname);
+
+  const anchor = (link: NavLink, className: string, children: React.ReactNode) =>
+    link.external ? (
+      <a
+        href={link.href}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={(event) => onLinkClick(event, link)}
+        className={className}
+      >
+        {children}
+      </a>
+    ) : (
+      <Link
+        href={link.href}
+        onClick={(event) => onLinkClick(event, link)}
+        aria-current={isCurrent(link) ? "page" : undefined}
+        className={className}
+      >
+        {children}
+      </Link>
+    );
 
   const brand = (
     <Link
       href="/"
-      onClick={(event) => onLinkClick(event, "/")}
-      className="flex shrink-0 items-center gap-2.5 sm:gap-3"
-      aria-label="FLUID OUNCE — home"
+      onClick={(event) => onLinkClick(event, { label: "Home", href: "/" })}
+      className="flex shrink-0 items-center gap-3"
+      aria-label={`${BRAND} — home`}
     >
       <Image
-        src={MARK_SRC}
+        src={MARK_INK_SRC}
         alt=""
         width={MARK_WIDTH}
         height={MARK_HEIGHT}
         priority
-        className="h-[30px] w-auto"
+        className="h-[50px] w-auto sm:h-[64px] short:h-[44px]"
       />
       {/* Never let the wordmark break — it would wrap under the mark. */}
-      <span className="text-metal whitespace-nowrap text-[11px] font-medium uppercase tracking-widest2 sm:text-sm">
-        Fluid Ounce
+      <span className="whitespace-nowrap font-wordmark text-[12.5px] font-[450] uppercase tracking-[0.34em] text-ink sm:text-[14px]">
+        {BRAND}
       </span>
     </Link>
   );
 
   const desktopList = (links: NavLink[], align: "start" | "end") => (
-    <ul
-      className={`flex items-center gap-7 xl:gap-10 ${align === "end" ? "justify-end" : "justify-start"}`}
-    >
+    <ul className={`flex items-center gap-8 xl:gap-11 ${align === "end" ? "justify-end" : "justify-start"}`}>
       {links.map((link) => {
-        const current = isCurrent(link.href);
+        const current = isCurrent(link);
         return (
-          <li key={link.href}>
-            <Link
-              href={link.href}
-              onClick={(event) => onLinkClick(event, link.href)}
-              aria-current={current ? "page" : undefined}
-              className={`group relative whitespace-nowrap text-[11px] font-light uppercase tracking-widest2 transition-colors duration-500 hover:text-platinum ${
-                current ? "text-platinum" : "text-white/60"
-              }`}
-            >
-              {link.label}
-              <span
-                className={`absolute -bottom-1.5 left-0 h-px bg-ice/60 transition-all duration-500 ease-lux ${
-                  current ? "w-full" : "w-0 group-hover:w-full"
-                }`}
-              />
-            </Link>
+          <li key={link.label}>
+            {anchor(
+              link,
+              // The stroke is the "very slightly bolder": the text face comes only
+              // in 400 and 700, and a hair of outline sits between the two.
+              "group relative whitespace-nowrap text-[11.5px] uppercase tracking-widest2 text-ink [-webkit-text-stroke:0.22px_currentColor]",
+              <>
+                {link.label}
+                <span
+                  className={`absolute -bottom-1.5 left-0 h-px bg-ink transition-all duration-500 ease-lux ${
+                    current ? "w-full" : "w-0 group-hover:w-full"
+                  }`}
+                />
+              </>,
+            )}
           </li>
         );
       })}
@@ -172,37 +156,36 @@ export default function Navbar() {
     <>
       <header
         className={`fixed inset-x-0 top-0 z-50 border-b transition-[background-color,border-color,backdrop-filter] duration-700 ease-lux ${
-          lifted ? "border-white/10 bg-ink-900/70 backdrop-blur-xl" : "border-transparent bg-transparent"
+          lifted
+            ? "border-ink/10 bg-porcelain/95 fine:bg-porcelain/85 fine:backdrop-blur-xl"
+            : "border-transparent bg-transparent"
         }`}
       >
         <div className="pt-safe">
-          {/* Wide screens: the mark centred, the page to its left, everything
-              else to its right — the classic couture split, balanced four
-              and four. */}
+          {/* Wide screens: the mark centred, three links either side. */}
           <nav
             aria-label="Main"
-            className="mx-auto hidden h-20 max-w-[92rem] grid-cols-[1fr_auto_1fr] items-center gap-8 px-10 lg:grid xl:px-14"
+            className="mx-auto hidden h-20 max-w-[92rem] grid-cols-[1fr_auto_1fr] items-center gap-10 px-10 lg:grid xl:px-14"
           >
-            {desktopList(SECTION_LINKS, "start")}
+            {desktopList(NAV_LEFT, "start")}
             {brand}
-            {desktopList(INFO_LINKS, "end")}
+            {desktopList(NAV_RIGHT, "end")}
           </nav>
 
-          {/* Phones and tablets: eight links do not fit in a row, so they live
-              behind a menu. */}
-          <div className="flex h-16 items-center justify-between px-5 sm:h-20 sm:px-10 lg:hidden">
+          {/* Phones and tablets: the links live behind a menu. */}
+          <div className="safe-gutter flex h-16 items-center justify-between px-5 sm:h-20 sm:px-10 lg:hidden short:h-14">
             {brand}
             <button
               type="button"
               onClick={() => setMenuOpen(true)}
               aria-expanded={menuOpen}
               aria-controls="site-menu"
-              className="group flex items-center gap-3 py-2 pl-3 text-[10px] font-light uppercase tracking-widest2 text-white/70 transition-colors duration-500 hover:text-platinum sm:text-[11px]"
+              aria-label="Open menu"
+              className="group flex h-11 w-11 items-center justify-end text-ink"
             >
-              Menu
-              <span aria-hidden className="flex w-6 flex-col items-end gap-[5px]">
-                <span className="block h-px w-6 bg-current" />
-                <span className="block h-px w-4 bg-current transition-all duration-500 ease-lux group-hover:w-6" />
+              <span aria-hidden className="flex w-7 flex-col items-end gap-[6px]">
+                <span className="block h-px w-7 bg-current" />
+                <span className="block h-px w-5 bg-current transition-all duration-500 ease-lux group-hover:w-7" />
               </span>
             </button>
           </div>
@@ -225,60 +208,53 @@ export default function Navbar() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0, transition: { duration: 0.35 } }}
             transition={{ duration: 0.5, ease: EASE_OUT_EXPO }}
-            className="fixed inset-0 z-[60] flex flex-col overflow-y-auto bg-ink-900/[0.97] backdrop-blur-xl lg:hidden"
+            className="fixed inset-0 z-[60] flex flex-col overflow-y-auto overscroll-contain bg-porcelain lg:hidden"
           >
             <div className="pt-safe">
-              <div className="flex h-16 items-center justify-between px-5 sm:h-20 sm:px-10">
+              <div className="safe-gutter flex h-16 items-center justify-between px-5 sm:h-20 sm:px-10 short:h-14">
                 {brand}
                 <button
                   ref={closeRef}
                   type="button"
                   onClick={() => setMenuOpen(false)}
-                  className="flex items-center gap-3 py-2 pl-3 text-[10px] font-light uppercase tracking-widest2 text-white/70 transition-colors duration-500 hover:text-platinum sm:text-[11px]"
+                  aria-label="Close menu"
+                  className="flex h-11 w-11 items-center justify-end text-ink transition-opacity duration-500 hover:opacity-60"
                 >
-                  Close
-                  <svg
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth={1}
-                    aria-hidden
-                    className="h-5 w-5"
-                  >
-                    <path d="M6 6 L18 18 M18 6 L6 18" />
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.2} aria-hidden className="h-6 w-6">
+                    <path d="M5 5 L19 19 M19 5 L5 19" />
                   </svg>
                 </button>
               </div>
             </div>
 
-            <nav aria-label="Site" className="flex flex-1 flex-col justify-center px-6 py-8 sm:px-10">
-              <ul>
+            <nav aria-label="Site" className="safe-gutter flex flex-1 flex-col justify-center px-6 py-8 sm:px-10 short:py-2">
+              {/* Two columns on a phone on its side: six rows would not fit. */}
+              <ul className="short:grid short:grid-cols-2 short:gap-x-10">
                 {ALL_LINKS.map((link, index) => {
-                  const current = isCurrent(link.href);
+                  const current = isCurrent(link);
                   return (
                     <motion.li
-                      key={link.href}
+                      key={link.label}
                       initial={{ opacity: 0, y: 26 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ duration: 0.9, delay: 0.08 + index * 0.05, ease: EASE_OUT_EXPO }}
                     >
-                      <Link
-                        href={link.href}
-                        onClick={(event) => onLinkClick(event, link.href)}
-                        aria-current={current ? "page" : undefined}
-                        className="group flex items-baseline gap-5 border-b border-white/[0.06] py-3"
-                      >
-                        <span className="w-6 shrink-0 text-[10px] font-light tracking-widest2 text-ice/40">
-                          {String(index + 1).padStart(2, "0")}
-                        </span>
-                        <span
-                          className={`font-display text-[2rem] leading-none transition-colors duration-500 sm:text-5xl ${
-                            current ? "italic text-white" : "text-platinum/85 group-hover:text-white"
-                          }`}
-                        >
-                          {link.label}
-                        </span>
-                      </Link>
+                      {anchor(
+                        link,
+                        "group flex items-baseline gap-5 border-b border-ink/10 py-4 short:py-2.5",
+                        <>
+                          <span className="w-7 shrink-0 text-[12px] tracking-widest2 text-gold-deep">
+                            {String(index + 1).padStart(2, "0")}
+                          </span>
+                          <span
+                            className={`font-display text-[1.9rem] leading-none transition-colors duration-500 sm:text-[2.6rem] short:text-[1.5rem] ${
+                              current ? "italic text-ink" : "text-ink-soft group-hover:text-ink"
+                            }`}
+                          >
+                            {link.label}
+                          </span>
+                        </>,
+                      )}
                     </motion.li>
                   );
                 })}
@@ -289,18 +265,19 @@ export default function Navbar() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.8, delay: 0.5 }}
-              className="pb-safe border-t border-white/10 px-6 sm:px-10"
+              className="pb-safe safe-gutter border-t border-ink/10 px-6 sm:px-10"
             >
-              <div className="flex flex-col gap-2 py-6">
-                <a
-                  href={`mailto:${CONTACT_EMAIL}`}
-                  className="text-xs font-light text-white/60 transition-colors duration-500 hover:text-platinum sm:text-sm"
-                >
-                  {CONTACT_EMAIL}
-                </a>
-                <p className="text-[10px] font-light uppercase tracking-widest2 text-white/30">
-                  New York · New Jersey · Florida
-                </p>
+              <div className="flex flex-wrap items-end justify-between gap-6 py-6 short:items-center short:py-2">
+                <div className="flex flex-col text-[14px] text-ink-soft short:flex-row short:items-center short:gap-5">
+                  <a href={`mailto:${CONTACT.email}`} className="py-1.5 transition-colors duration-500 hover:text-ink">
+                    {CONTACT.email}
+                  </a>
+                  <a href={`tel:${CONTACT.phoneE164}`} className="py-1.5 transition-colors duration-500 hover:text-ink">
+                    {CONTACT.phone}
+                  </a>
+                  <span className="mt-1.5 text-[12px] uppercase tracking-widest2 text-ink-muted short:mt-0">{CONTACT.city}</span>
+                </div>
+                <SocialIcons />
               </div>
             </motion.div>
           </motion.div>

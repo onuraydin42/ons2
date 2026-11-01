@@ -9,7 +9,9 @@ import { createContext, useContext, useEffect, useMemo, useRef } from "react";
  * Native wheel scrolling moves in hard discrete jumps. Lenis interpolates the
  * scroll position every frame, so `useScroll` — and therefore the opening's
  * scroll-linked plates and every reveal — receives a continuous value instead
- * of a staircase.
+ * of a staircase. A finger already scrolls continuously, so touch screens keep
+ * the browser's own scrolling and are spared Lenis's listeners: a touch listener
+ * that may cancel the scroll makes every scroll wait on script.
  *
  * The instance is shared through context because several places need it: the
  * age gate and the phone menu freeze scrolling while they are open, and every
@@ -84,6 +86,7 @@ export default function SmoothScroll({ children }: { children: React.ReactNode }
   useEffect(() => {
     // Anyone who has asked the OS to reduce motion gets plain native scrolling.
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (!window.matchMedia("(pointer: fine)").matches) return;
 
     const lenis = new Lenis({
       // A long, weighted glide. Higher duration reads as heavier and more

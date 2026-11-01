@@ -7,7 +7,9 @@ import { useState } from "react";
 import OrderForm from "@/components/order/OrderForm";
 import ReorderForm from "@/components/order/ReorderForm";
 import { GhostButton } from "@/components/order/Fields";
-import { EASE_LUX, MARK_HEIGHT, MARK_SRC, MARK_WIDTH } from "@/lib/brand";
+import { ORDER_COPY as COPY } from "@/data/order";
+import { BRAND, FOOTER_LEGAL, copyright } from "@/data/site";
+import { EASE_LUX, MARK_HEIGHT, MARK_INK_SRC, MARK_WIDTH } from "@/lib/brand";
 
 type View = "landing" | "order" | "reorder";
 
@@ -22,10 +24,10 @@ function BobbingChevron() {
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth={0.9}
+      strokeWidth={1}
       strokeLinecap="square"
       aria-hidden
-      className="h-6 w-6 shrink-0 text-ice/60 sm:h-10 sm:w-10"
+      className="h-6 w-6 shrink-0 text-gold-deep sm:h-10 sm:w-10"
       animate={{ y: [-8, 8, -8] }}
       transition={BOB}
     >
@@ -41,17 +43,6 @@ const swap = {
   transition: { duration: 0.5, ease: EASE_LUX },
 };
 
-const COPY: Record<Exclude<View, "landing">, { title: string; lede: string }> = {
-  order: {
-    title: "Order",
-    lede: "For licensed Liquor Store and Restaurant partners placing a first order.",
-  },
-  reorder: {
-    title: "Reorder",
-    lede: "For accounts already stocking FLUID OUNCE.",
-  },
-};
-
 export default function OrderPortal() {
   const [view, setView] = useState<View>("landing");
 
@@ -63,30 +54,26 @@ export default function OrderPortal() {
   };
 
   return (
-    <main className="min-h-stage relative bg-ink-900">
-      {/* A single cold pool of light, the same one the bottle sits in. */}
+    <main className="min-h-stage relative bg-porcelain">
+      {/* A soft pool of light, the same warmth as the front door. */}
       <div
         aria-hidden
         className="pointer-events-none fixed inset-0"
         style={{
           background:
-            "radial-gradient(60% 50% at 50% 30%, rgba(191,211,224,0.07) 0%, rgba(5,7,10,0) 70%)",
+            "radial-gradient(60% 50% at 50% 28%, rgba(227,204,138,0.14) 0%, rgba(227,204,138,0) 70%)",
         }}
       />
+      {/* Grain over it: a glow this faint would otherwise show its 8-bit steps as rings. */}
+      <div aria-hidden className="bg-grain pointer-events-none fixed inset-0 opacity-[0.045]" />
 
       {/* Mark only — the portal is not linked from the site and carries no nav. */}
-      <div className="relative px-6 pt-8 sm:px-10 sm:pt-10 lg:px-16">
-        <Image
-          src={MARK_SRC}
-          alt="FLUID OUNCE"
-          width={MARK_WIDTH}
-          height={MARK_HEIGHT}
-          priority
-          className="h-9 w-auto sm:h-11"
-        />
+      <div className="safe-gutter relative flex items-center gap-3 px-6 pt-[max(2rem,env(safe-area-inset-top,0px))] sm:px-10 sm:pt-10 lg:px-16">
+        <Image src={MARK_INK_SRC} alt="" width={MARK_WIDTH} height={MARK_HEIGHT} priority className="h-10 w-auto sm:h-12" />
+        <span className="font-wordmark text-[13px] uppercase tracking-[0.34em] text-ink sm:text-[15px]">{BRAND}</span>
       </div>
 
-      <div className="relative mx-auto flex min-h-[calc(100vh-8rem)] w-full max-w-4xl flex-col justify-center px-6 py-16 sm:px-10">
+      <div className="safe-gutter relative mx-auto flex min-h-[calc(var(--svh)*100-8rem)] w-full max-w-4xl flex-col justify-center px-6 py-16 sm:px-10 short:min-h-0 short:py-8">
         <AnimatePresence mode="wait">
           {view === "landing" ? (
             <motion.div key="landing" {...swap} className="text-center">
@@ -95,19 +82,20 @@ export default function OrderPortal() {
 
                 {/* Held on one line: the chevrons flank the headline, and a wrap
                     would strand them beside a two-line block. */}
-                <h1 className="text-metal whitespace-nowrap font-display text-2xl font-normal uppercase leading-none tracking-widest2 sm:text-5xl lg:text-6xl">
-                  Place Order
+                <h1 className="whitespace-nowrap font-display text-[clamp(1.05rem,6.2vw,1.7rem)] font-normal uppercase leading-none tracking-widest2 text-ink sm:text-[2.6rem] lg:text-[3.3rem]">
+                  {COPY.heading}
                 </h1>
 
                 <BobbingChevron />
               </div>
 
+              {/* Reorder first, then Order — as the live doors are hung. */}
               <div className="mx-auto mt-14 flex max-w-md flex-col items-stretch gap-4 sm:mt-16 sm:max-w-none sm:flex-row sm:justify-center">
-                <GhostButton onClick={() => open("order")} className="sm:min-w-[13rem]">
-                  Order
-                </GhostButton>
                 <GhostButton onClick={() => open("reorder")} className="sm:min-w-[13rem]">
-                  Reorder
+                  {COPY.reorder}
+                </GhostButton>
+                <GhostButton onClick={() => open("order")} className="sm:min-w-[13rem]">
+                  {COPY.order}
                 </GhostButton>
               </div>
             </motion.div>
@@ -118,28 +106,48 @@ export default function OrderPortal() {
               <button
                 type="button"
                 onClick={() => open("landing")}
-                className="w-full border border-white/25 px-10 py-4 text-sm font-light uppercase tracking-widest2 text-platinum/90 transition-all duration-500 ease-lux hover:border-ice/60 hover:text-platinum hover:shadow-[0_0_36px_-8px_rgba(191,211,224,0.35)] sm:w-auto sm:min-w-[13rem] sm:py-[1.125rem]"
+                className="w-full border border-ink/35 px-10 py-4 text-[12px] uppercase tracking-widest2 text-ink transition-all duration-500 ease-lux hover:border-ink hover:bg-ink hover:text-ivory active:border-ink active:bg-ink active:text-ivory sm:w-auto sm:min-w-[13rem] sm:py-[1.125rem]"
               >
-                Go Back
+                {COPY.back}
               </button>
 
-              <h1 className="text-metal mt-12 text-balance font-display text-4xl font-normal uppercase tracking-widest2 sm:text-5xl">
-                {COPY[view].title}
+              <h1 className="mt-12 font-display text-[2rem] font-normal uppercase tracking-widest2 text-ink sm:text-[2.6rem]">
+                {view === "order" ? COPY.order : COPY.reorder}
               </h1>
 
-              <p className="mt-5 text-sm font-light leading-relaxed text-white/55 sm:text-base">
-                {COPY[view].lede}
-              </p>
-
-              <div className="mt-12">{view === "order" ? <OrderForm /> : <ReorderForm />}</div>
+              <div className="mt-12">
+                {view === "order" ? (
+                  <OrderForm onClose={() => open("landing")} />
+                ) : (
+                  <ReorderForm onClose={() => open("landing")} />
+                )}
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
       </div>
 
-      <p className="relative px-6 pb-10 text-center text-[11px] font-light leading-relaxed tracking-wide text-white/30 sm:px-10 sm:text-xs">
-        Please drink responsibly. You must be of legal drinking age to enter.
-      </p>
+      <footer className="safe-gutter relative border-t border-ink/15 px-6 pb-[max(2.5rem,env(safe-area-inset-bottom,0px))] pt-8 text-center sm:px-10">
+        <p className="mx-auto max-w-3xl text-pretty text-[12.5px] leading-[1.8] text-ink-muted">
+          {FOOTER_LEGAL.text}{" "}
+          {FOOTER_LEGAL.links.map((link, index) => (
+            <span key={link.href}>
+              <a
+                href={link.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="py-2.5 text-ink-soft underline decoration-ink/40 underline-offset-4 hover:text-ink hover:decoration-ink"
+              >
+                {link.label}
+              </a>
+              {index === 0 ? " and " : "."}
+            </span>
+          ))}
+        </p>
+        <p suppressHydrationWarning className="mt-5 text-[12.5px] text-ink-muted">
+          {copyright(new Date().getFullYear())}
+        </p>
+      </footer>
     </main>
   );
 }

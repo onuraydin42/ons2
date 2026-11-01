@@ -1,52 +1,46 @@
+/**
+ * The four FLUID OUNCE cocktails, transcribed from their recipe cards
+ * (images2/{cosmo,velvet,blonde,vesper}). Names and builds are exactly as the
+ * cards print them — capitalisation and spelling included — so the copy never
+ * disagrees with the card shown beside it.
+ */
+
 export interface Cocktail {
   id: string;
   name: string;
-  tagline: string;
   image: string;
+  /** The room tint while this card is on stage. */
   accent: string;
   build: string[];
-  description: string;
 }
 
 export const cocktails: Cocktail[] = [
   {
     id: "cosmo",
-    name: "Cosmopolitan",
-    tagline: "Sharp, bright, unbothered.",
+    name: "Fluid Cosmo",
     image: "/images/cocktails/cosmo.webp",
-    accent: "#7A1F3D",
-    build: ["Signature", "Triple sec", "Cranberry", "Fresh lime"],
-    description:
-      "The test every vodka fails or passes in public. With nothing to hide behind, Signature keeps the citrus clean and the finish dry instead of syrupy.",
+    accent: "#A7B26A",
+    build: ["Olive oil wash", "Fig", "Sage", "Lemon drops", "FLUID OUNCE vodka"],
   },
   {
     id: "velvet",
-    name: "Velvet",
-    tagline: "Texture over noise.",
+    name: "Fluid Velvet",
     image: "/images/cocktails/velvet.webp",
-    accent: "#4A3524",
-    build: ["Signature", "Vanilla", "Cream", "Cacao dust"],
-    description:
-      "A house build that leans entirely on mouthfeel. Because Signature carries no burn, the cream never has to fight the spirit — it simply rests on it.",
+    accent: "#8A6446",
+    build: ["Brewed Colombian Espresso", "Coffee Liquer", "Baileys", "FLUID OUNCE Vodka"],
   },
   {
     id: "blonde",
-    name: "Blonde",
-    tagline: "Golden hour in a coupe.",
+    name: "Fluid Blonde",
     image: "/images/cocktails/blonde.webp",
-    accent: "#5C4B1E",
-    build: ["Signature", "Elderflower", "Grapefruit", "Sea salt"],
-    description:
-      "Floral and faintly saline. The salt pulls the grapefruit forward and the elderflower keeps it from turning bitter. Serve very cold, no garnish.",
+    accent: "#D9C56C",
+    build: ["Organic Lemon juice", "Lemon Mint simple syrup", "FLUID OUNCE Vodka"],
   },
   {
     id: "vesper",
-    name: "Vesper",
-    tagline: "Stirred, and deeply serious.",
+    name: "Fluid Vesper",
     image: "/images/cocktails/vesper.webp",
-    accent: "#1E2A3A",
-    build: ["Signature", "Dry gin", "Lillet Blanc", "Lemon oil"],
-    description:
-      "The most unforgiving drink on this list. Three spirits, no sugar, nowhere to hide. This is the build we use when someone asks us to prove the point.",
+    accent: "#6E55A6",
+    build: ["Lavender Gin", "Lillet Blanc", "Lemon Drops", "FLUID OUNCE Vodka"],
   },
 ];

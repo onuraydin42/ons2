@@ -1,37 +1,34 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 
 import GateBackdrop from "@/components/GateBackdrop";
 import { useSmoothScroll } from "@/components/SmoothScroll";
-import { LOGO_HEIGHT, LOGO_SRC, LOGO_WIDTH } from "@/lib/brand";
+import { AGE_GATE } from "@/data/site";
+import { MARK_HEIGHT, MARK_SRC, MARK_WIDTH } from "@/lib/brand";
 import { EASE_OUT_EXPO } from "@/lib/motion";
-import { isHalloweenSeason } from "@/lib/season";
 
 /**
- * Legal-age confirmation, shown on first load of every route.
+ * Legal-age confirmation, shown on the first load of every gated route, in
+ * the live site's words. "No" leaves for Google, as it does live.
  *
  * Deliberately state-only — no localStorage, no cookie. A static export is
  * prerendered HTML, so anything read from the browser during the first render
- * would desync the server markup from the client tree. Starting from a fixed
- * `open: true` keeps hydration exact; the season is read after mount for the
- * same reason.
+ * would desync the server markup from the client tree. SiteShell owns `open`,
+ * so client-side navigation never brings the gate back once answered.
  */
-export default function AgeGate({ onEnter }: { onEnter?: () => void }) {
-  const [open, setOpen] = useState(true);
-  const [declined, setDeclined] = useState(false);
-  const [halloween, setHalloween] = useState(false);
+export default function AgeGate({ open, onEnter }: { open: boolean; onEnter: () => void }) {
   const smooth = useSmoothScroll();
 
-  useEffect(() => setHalloween(isHalloweenSeason()), []);
+  // A whole-screen blur is too much to animate on a phone while the page starts.
+  const blurOut = typeof window !== "undefined" && window.matchMedia("(pointer: fine)").matches;
 
   /* Every full load — a first visit or a refresh — starts the show from the
    * top. Browsers otherwise put a refreshed page back where it was, landing
-   * the visitor mid-page with the opening already spent. Client-side
-   * navigation never remounts the gate, so moving around the site is
-   * unaffected. */
+   * the visitor mid-page with the opening already spent. */
   useEffect(() => {
     if ("scrollRestoration" in window.history) window.history.scrollRestoration = "manual";
     window.scrollTo(0, 0);
@@ -61,8 +58,11 @@ export default function AgeGate({ onEnter }: { onEnter?: () => void }) {
   const enter = () => {
     // Whatever happened behind the gate, the visit begins at the very top.
     smooth.scrollTo(0, { immediate: true });
-    setOpen(false);
-    onEnter?.();
+    onEnter();
+  };
+
+  const decline = () => {
+    window.location.href = AGE_GATE.declineUrl;
   };
 
   return (
@@ -78,105 +78,77 @@ export default function AgeGate({ onEnter }: { onEnter?: () => void }) {
           // as one motion rather than a curtain being yanked away. pointerEvents
           // drops the instant the exit starts, so the fading overlay cannot
           // swallow a click meant for the page below it.
-          exit={{ opacity: 0, scale: 1.06, filter: "blur(6px)", pointerEvents: "none" }}
+          exit={{ opacity: 0, scale: 1.04, ...(blurOut ? { filter: "blur(6px)" } : {}), pointerEvents: "none" }}
           transition={{ duration: 1.1, ease: EASE_OUT_EXPO }}
-          className="fixed inset-0 z-[999] flex items-center justify-center overflow-hidden bg-ink-900 px-6"
+          data-lenis-prevent
+          className="fixed inset-0 z-[999] flex overflow-y-auto overscroll-contain bg-porcelain px-4 py-6 sm:px-5 sm:py-10 short:py-3"
         >
-          <GateBackdrop halloween={halloween} />
+          <GateBackdrop />
 
-          <div className="relative w-full max-w-lg text-center">
-            <motion.div
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.9, ease: EASE_OUT_EXPO }}
-            >
-              <Image
-                src={LOGO_SRC}
-                alt="FLUID OUNCE"
-                width={LOGO_WIDTH}
-                height={LOGO_HEIGHT}
-                priority
-                className="mx-auto h-24 w-auto drop-shadow-[0_0_24px_rgba(255,214,150,0.18)] sm:h-28"
+          {/* Auto margins rather than centring the row: on a screen shorter than
+              the card, centring would push its top out of reach of the scroll. */}
+          <div className="animate-fo-rise relative m-auto w-full max-w-xl border border-gold/45 bg-ivory/90 px-5 py-9 text-center shadow-[0_40px_120px_-60px_rgba(22,20,18,0.5)] fine:bg-ivory/80 fine:backdrop-blur-md sm:px-14 sm:py-14 short:py-5">
+            {/* Hairline inner frame: the gilt edge of a box lid. */}
+            <span aria-hidden className="pointer-events-none absolute inset-2 border border-gold/20 sm:inset-3" />
+
+            <Image
+              src={MARK_SRC}
+              alt=""
+              width={MARK_WIDTH}
+              height={MARK_HEIGHT}
+              priority
+              className="mx-auto h-20 w-auto sm:h-24 short:h-12"
+            />
+
+            <p className="mt-6 font-wordmark text-base font-normal uppercase tracking-[0.42em] text-ink sm:text-lg short:mt-2 short:text-sm">
+              {AGE_GATE.wordmark}
+            </p>
+
+            <span aria-hidden className="relative mx-auto mt-6 block h-px w-24 overflow-hidden bg-gold/50 short:mt-2">
+              <span
+                className="absolute inset-y-0 left-0 w-full bg-gradient-to-r from-transparent via-gold-light to-transparent"
+                style={{ animation: "fo-sheen 4.2s ease-in-out 1s infinite" }}
               />
-            </motion.div>
+            </span>
 
-            {/* Seasonal kicker. Its slot is always reserved, so the copy below
-                does not jump when it fades in after mount. */}
-            <div className="mt-9 flex h-4 items-center justify-center">
-              <AnimatePresence>
-                {halloween ? (
-                  <motion.p
-                    key="season"
-                    initial={{ opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 1.2, delay: 0.3, ease: EASE_OUT_EXPO }}
-                    className="flex items-center gap-4 font-display text-sm italic tracking-wide text-ember/90 sm:text-[15px]"
-                  >
-                    <span aria-hidden className="h-px w-8 bg-gradient-to-r from-transparent to-ember/60 sm:w-12" />
-                    All Hallows’ Eve
-                    <span aria-hidden className="h-px w-8 bg-gradient-to-l from-transparent to-ember/60 sm:w-12" />
-                  </motion.p>
-                ) : null}
-              </AnimatePresence>
+            {/* An h2, as live: each page's one h1 is its own title, which is
+                what search engines should read the page as. */}
+            <h2
+              id="age-gate-heading"
+              className="mx-auto mt-8 max-w-md text-balance font-display text-[clamp(1.45rem,7vw,1.7rem)] font-normal leading-[1.15] text-ink sm:text-[2.3rem] short:mt-3 short:max-w-none short:text-[1.45rem]"
+            >
+              {AGE_GATE.question}
+            </h2>
+
+            <div className="mt-10 grid grid-cols-2 gap-3 sm:flex sm:items-center sm:justify-center sm:gap-4 short:mt-4">
+              <button
+                type="button"
+                onClick={enter}
+                className="bg-ink px-4 py-4 text-[12px] uppercase tracking-widest2 text-ivory transition duration-500 ease-lux hover:bg-gold hover:text-ink active:bg-gold active:text-ink sm:min-w-[9.5rem] sm:px-9 short:py-3"
+              >
+                {AGE_GATE.yes}
+              </button>
+              <button
+                type="button"
+                onClick={decline}
+                className="border border-ink/35 px-4 py-4 text-[12px] uppercase tracking-widest2 text-ink transition duration-500 ease-lux hover:border-ink hover:bg-ink/[0.05] active:border-ink active:bg-ink/[0.05] sm:min-w-[9.5rem] sm:px-9 short:py-3"
+              >
+                {AGE_GATE.no}
+              </button>
             </div>
 
-            <AnimatePresence mode="wait">
-              {declined ? (
-                <motion.div
-                  key="declined"
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.6, ease: EASE_OUT_EXPO }}
-                  className="mt-7"
-                >
-                  <p className="text-balance font-display text-2xl leading-snug text-platinum sm:text-3xl">
-                    Thank you for your honesty. Please come back when you’re of legal age.
-                  </p>
-                </motion.div>
-              ) : (
-                <motion.div
-                  key="asking"
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -8 }}
-                  transition={{ duration: 0.7, delay: 0.15, ease: EASE_OUT_EXPO }}
-                  className="mt-7"
-                >
-                  <h1
-                    id="age-gate-heading"
-                    className="text-metal text-balance font-display text-[2rem] font-normal leading-[1.1] tracking-tight sm:text-5xl"
-                  >
-                    Are you of <span className="italic">legal</span> drinking age?
-                  </h1>
+            <p className="mx-auto mt-8 max-w-md text-balance text-[11.5px] leading-relaxed tracking-[0.08em] text-ink-muted sm:mt-9 sm:text-[12.5px] short:mt-3 short:max-w-none">
+              {AGE_GATE.note}
+            </p>
 
-                  <div className="mt-11 flex items-center justify-center gap-4">
-                    <button
-                      type="button"
-                      onClick={enter}
-                      className={`min-w-[8rem] bg-platinum px-9 py-4 text-xs font-medium uppercase tracking-widest2 text-ink-900 transition duration-500 ease-lux hover:bg-white ${
-                        halloween
-                          ? "hover:shadow-[0_0_44px_-6px_rgba(255,150,60,0.55)]"
-                          : "hover:shadow-[0_0_40px_-8px_rgba(191,211,224,0.6)]"
-                      }`}
-                    >
-                      Yes
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setDeclined(true)}
-                      className="min-w-[8rem] border border-white/25 px-9 py-4 text-xs font-medium uppercase tracking-widest2 text-platinum/80 backdrop-blur-sm transition duration-500 ease-lux hover:border-white/60 hover:text-platinum"
-                    >
-                      No
-                    </button>
-                  </div>
-
-                  <p className="mx-auto mt-10 max-w-sm text-balance text-[11px] font-light leading-relaxed tracking-wide text-white/40">
-                    By entering you confirm you are of legal drinking age in your country of
-                    residence.
-                  </p>
-                </motion.div>
-              )}
-            </AnimatePresence>
+            <p className="mt-3 short:mt-1">
+              <Link
+                href="/terms/"
+                className="inline-block py-2 text-[11.5px] leading-relaxed tracking-[0.08em] text-ink-soft underline decoration-gold/60 underline-offset-[6px] transition-colors duration-500 hover:text-ink hover:decoration-gold sm:text-[12.5px]"
+              >
+                {AGE_GATE.accept}
+              </Link>
+            </p>
           </div>
         </motion.div>
       )}

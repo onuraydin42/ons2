@@ -1,31 +1,48 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import SignaturePad, { type SignaturePadHandle } from "@/components/SignaturePad";
 import { useSmoothScroll } from "@/components/SmoothScroll";
-import { FieldError, GhostButton, SelectField, TextField } from "@/components/order/Fields";
-import { ErrorNotice, ORDER_SUBMITTED, SuccessPanel } from "@/components/order/FormResult";
+import { GhostButton, ReviewBanner, SelectField, TextField } from "@/components/order/Fields";
+import { ErrorNotice, SuccessPanel } from "@/components/order/FormResult";
 import { PresentationPair } from "@/components/order/Presentation";
-import { CASE_OPTIONS, STATES } from "@/data/order";
+import { CASE_OPTIONS, ORDER_COPY as COPY, STATES } from "@/data/order";
 import { mailtoFallback, submitForm, type FormPayload, type SubmitState } from "@/lib/submitForm";
 
-type Errors = Partial<Record<"business" | "cases" | "state" | "signature", string>>;
+type FieldKey = "business" | "cases" | "state" | "signature";
+type Invalid = Partial<Record<FieldKey, true>>;
 
 /** A repeat order from an account that is already stocking the bottle. */
-export default function ReorderForm() {
+export default function ReorderForm({ onClose }: { onClose: () => void }) {
   const smooth = useSmoothScroll();
 
   const [business, setBusiness] = useState("");
   const [cases, setCases] = useState("");
   const [stateName, setStateName] = useState("");
-  const [signed, setSigned] = useState(false);
 
-  const [errors, setErrors] = useState<Errors>({});
+  const [invalid, setInvalid] = useState<Invalid>({});
   const [status, setStatus] = useState<SubmitState>("idle");
 
   const topRef = useRef<HTMLDivElement>(null);
   const signatureRef = useRef<SignaturePadHandle>(null);
+
+  const clearInvalid = useCallback((key: FieldKey) => {
+    setInvalid((current) => {
+      if (!current[key]) return current;
+      const next = { ...current };
+      delete next[key];
+      return next;
+    });
+  }, []);
+
+  /* One identity for the life of the form — see OrderForm. */
+  const onSigned = useCallback(
+    (hasStroke: boolean) => {
+      if (hasStroke) clearInvalid("signature");
+    },
+    [clearInvalid],
+  );
 
   const buildPayload = (): FormPayload => ({
     subject: `FLUID OUNCE — reorder · ${business.trim()}`,
@@ -33,17 +50,18 @@ export default function ReorderForm() {
       "Name of business": business.trim(),
       "Number of cases": cases,
       State: stateName,
+      Certification: COPY.certification,
     },
   });
 
   const validate = (): boolean => {
-    const next: Errors = {};
-    if (!business.trim()) next.business = "Required.";
-    if (!cases) next.cases = "Required.";
-    if (!stateName) next.state = "Required.";
-    if (signatureRef.current?.isEmpty() ?? true) next.signature = "Please sign above.";
+    const next: Invalid = {};
+    if (!business.trim()) next.business = true;
+    if (!cases) next.cases = true;
+    if (!stateName) next.state = true;
+    if (signatureRef.current?.isEmpty() ?? true) next.signature = true;
 
-    setErrors(next);
+    setInvalid(next);
     return Object.keys(next).length === 0;
   };
 
@@ -71,63 +89,85 @@ export default function ReorderForm() {
   return (
     <div ref={topRef}>
       {status === "success" ? (
-        <SuccessPanel message={ORDER_SUBMITTED} />
+        <SuccessPanel message={COPY.submitted} closeLabel={COPY.close} onClose={onClose} />
       ) : (
         <form onSubmit={onSubmit} noValidate className="space-y-9">
+          {Object.keys(invalid).length > 0 ? <ReviewBanner message={COPY.reviewFields} /> : null}
+
           {/* Both presentations, side by side, above the business name. */}
           <PresentationPair />
 
           <TextField
-            label="Name of Business"
+            label={COPY.businessName}
             name="business-name"
             value={business}
-            onChange={setBusiness}
-            placeholder="Enter business name"
+            onChange={(value) => {
+              setBusiness(value);
+              clearInvalid("business");
+            }}
+            placeholder={COPY.businessNamePlaceholder}
             autoComplete="organization"
-            error={errors.business}
+            invalid={invalid.business}
             required
           />
 
           <SelectField
-            label="Number of Cases"
+            label={COPY.cases}
             name="case-count"
             value={cases}
-            onChange={setCases}
+            onChange={(value) => {
+              setCases(value);
+              clearInvalid("cases");
+            }}
             options={CASE_OPTIONS}
-            note="Boxed presentation is reserved for Liquor Store partners. Restaurant partners receive the bottle presentation."
-            error={errors.cases}
+            placeholder={COPY.reorderCasesPlaceholder}
+            note={COPY.reorderCasesNote}
+            invalid={invalid.cases}
             required
           />
 
           <SelectField
-            label="State"
+            label={COPY.state}
             name="state"
             value={stateName}
-            onChange={setStateName}
+            onChange={(value) => {
+              setStateName(value);
+              clearInvalid("state");
+            }}
             options={STATES}
-            error={errors.state}
+            placeholder={COPY.statePlaceholder}
+            invalid={invalid.state}
             required
           />
 
           <div>
             <SignaturePad
               ref={signatureRef}
-              onChange={setSigned}
-              invalid={Boolean(errors.signature) && !signed}
+              label={COPY.signature}
+              note={COPY.signatureNote}
+              clearLabel={COPY.clear}
+              onChange={onSigned}
+              invalid={invalid.signature}
             />
-            {errors.signature && !signed ? <FieldError message={errors.signature} /> : null}
+            {invalid.signature ? (
+              <p className="mt-3 text-[13.5px] text-red-800">{COPY.signatureMissing}</p>
+            ) : null}
+
+            <p className="mt-8 text-pretty text-[14px] leading-relaxed text-ink-soft">{COPY.certification}</p>
           </div>
 
-          {status === "error" ? <ErrorNotice mailto={mailtoFallback(buildPayload())} /> : null}
+          {status === "error" ? (
+            <ErrorNotice message={COPY.reorderFailed} mailto={mailtoFallback(buildPayload())} />
+          ) : null}
 
           <div className="pt-2">
             <GhostButton
               type="submit"
               disabled={status === "submitting"}
               pulsing={status === "submitting"}
-              className="w-full sm:w-auto"
+              className="w-full sm:w-auto sm:min-w-[14rem]"
             >
-              {status === "submitting" ? "Submitting" : "Submit Order"}
+              {status === "submitting" ? COPY.submitting : COPY.submit}
             </GhostButton>
           </div>
         </form>

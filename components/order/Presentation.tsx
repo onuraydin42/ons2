@@ -1,9 +1,9 @@
 "use client";
 
 import Image from "next/image";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, useMotionValue } from "framer-motion";
 
-import LoopVideo from "@/components/LoopVideo";
+import BottleSpin, { BOTTLE_ASPECT } from "@/components/BottleSpin";
 import { EASE_LUX } from "@/lib/brand";
 import { PRESENTATION, PRESENTATION_NOTE, type BusinessType } from "@/data/order";
 
@@ -13,19 +13,15 @@ import { PRESENTATION, PRESENTATION_NOTE, type BusinessType } from "@/data/order
  * name — the reorder form shows the two side by side, the order form shows
  * whichever matches the business type chosen.
  *
- * The film is 9:16 with thin black bars down each side. A 1:2 frame with
- * cover-fit crops exactly those away, so it always sits in a 1:2 box.
+ * The bottle is the opening's turning bottle: transparent frames, so it
+ * stands on the frame's own linen with no box of film colour around it (a
+ * video's decoded colour never quite matches CSS, and differs by browser).
  */
 
-function BottleFilm() {
-  return (
-    <LoopVideo
-      src={PRESENTATION.bottle.src}
-      poster={PRESENTATION.bottle.poster}
-      label={PRESENTATION.bottle.label}
-      className="absolute inset-0 h-full w-full object-cover"
-    />
-  );
+function BottleTurn({ className = "" }: { className?: string }) {
+  // Nothing to scroll with here: it simply turns.
+  const still = useMotionValue(0);
+  return <BottleSpin progress={still} active thumbnail alt={PRESENTATION.bottle.label} sizes="20rem" className={className} />;
 }
 
 /**
@@ -37,7 +33,7 @@ export function PresentationPair() {
   return (
     <div className="flex items-start gap-3 sm:gap-4">
       <figure
-        className="relative aspect-[3/2] overflow-hidden rounded-md border border-white/10 bg-black"
+        className="relative aspect-[3/2] overflow-hidden rounded-md border border-ink/10 bg-ink"
         style={{ flex: "1.5 1 0%" }}
       >
         <Image
@@ -49,10 +45,10 @@ export function PresentationPair() {
         />
       </figure>
       <figure
-        className="relative aspect-[1/2] overflow-hidden rounded-md border border-white/10 bg-black"
-        style={{ flex: "0.5 1 0%" }}
+        className="relative overflow-hidden rounded-md border border-ink/10 bg-linen"
+        style={{ flex: `${BOTTLE_ASPECT} 1 0%` }}
       >
-        <BottleFilm />
+        <BottleTurn className="w-full" />
       </figure>
     </div>
   );
@@ -78,7 +74,7 @@ export function PresentationForType({ type }: { type: BusinessType | "" }) {
           {/* Spacing lives inside the animated box: padding on the box itself
               would stop it collapsing all the way to zero. */}
           <div className="pb-9">
-            <div className="relative aspect-[3/2] w-full overflow-hidden rounded-md border border-white/10 bg-black sm:aspect-[16/9]">
+            <div className="relative aspect-[3/2] w-full overflow-hidden rounded-md border border-ink/10 bg-linen sm:aspect-[16/9]">
               <AnimatePresence initial={false}>
                 <motion.div
                   key={type}
@@ -100,21 +96,7 @@ export function PresentationForType({ type }: { type: BusinessType | "" }) {
                       className="object-cover object-[50%_25%]"
                     />
                   ) : (
-                    <>
-                      {/* A soft spotlight, so the portrait film sits on a
-                          lit stage rather than floating in a black box. */}
-                      <div
-                        aria-hidden
-                        className="absolute inset-0"
-                        style={{
-                          background:
-                            "radial-gradient(38% 75% at 50% 55%, rgba(191,211,224,0.14) 0%, rgba(0,0,0,0) 70%)",
-                        }}
-                      />
-                      <div className="relative aspect-[1/2] h-full shadow-[0_30px_80px_-20px_rgba(0,0,0,0.9)]">
-                        <BottleFilm />
-                      </div>
-                    </>
+                    <BottleTurn className="h-[92%]" />
                   )}
                 </motion.div>
               </AnimatePresence>
@@ -127,7 +109,7 @@ export function PresentationForType({ type }: { type: BusinessType | "" }) {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -4 }}
                 transition={{ duration: 0.4, ease: EASE_LUX }}
-                className="mt-4 text-center text-[13px] font-light leading-relaxed text-white/60 sm:text-sm"
+                className="mt-4 text-center text-[15px] leading-relaxed text-ink-soft"
               >
                 {PRESENTATION_NOTE[type]}
               </motion.p>

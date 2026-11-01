@@ -1,12 +1,14 @@
 "use client";
 
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef } from "react";
 
 /** Keeps the base64 payload small enough for the form relay to accept intact. */
 const SIGNATURE_MAX_WIDTH = 800;
 
-const STROKE = "#F2F6FA";
-const FIELD = "#080B0F";
+/* Ink on paper: the signature arrives in the inbox the way it would on a
+ * printed order form. */
+const STROKE = "#161412";
+const FIELD = "#FFFFFF";
 
 export interface SignaturePadHandle {
   /** PNG data URL, downscaled to SIGNATURE_MAX_WIDTH. Null when unsigned. */
@@ -16,14 +18,17 @@ export interface SignaturePadHandle {
 }
 
 interface SignaturePadProps {
-  label?: string;
+  label: string;
+  /** The line beside the Clear button — "Sign with mouse or touch." */
+  note: string;
+  clearLabel: string;
   /** Fires whenever the signed/unsigned state flips. */
   onChange?: (hasStroke: boolean) => void;
   invalid?: boolean;
 }
 
 const SignaturePad = forwardRef<SignaturePadHandle, SignaturePadProps>(function SignaturePad(
-  { label = "Signature", onChange, invalid = false },
+  { label, note, clearLabel, onChange, invalid = false },
   ref,
 ) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -33,7 +38,6 @@ const SignaturePad = forwardRef<SignaturePadHandle, SignaturePadProps>(function 
   /* Whether anything was drawn is tracked as a flag, not sniffed out of the
    * pixel buffer — reading pixels back is slow and gets fooled by antialiasing. */
   const hasStrokeRef = useRef(false);
-  const [hasStroke, setHasStroke] = useState(false);
 
   const paintField = useCallback((canvas: HTMLCanvasElement) => {
     const context = canvas.getContext("2d");
@@ -52,7 +56,7 @@ const SignaturePad = forwardRef<SignaturePadHandle, SignaturePadProps>(function 
     context.fillStyle = FIELD;
     context.fillRect(0, 0, width, height);
 
-    context.lineWidth = 1.4;
+    context.lineWidth = 1.6;
     context.lineCap = "round";
     context.lineJoin = "round";
     context.strokeStyle = STROKE;
@@ -60,33 +64,39 @@ const SignaturePad = forwardRef<SignaturePadHandle, SignaturePadProps>(function 
     return context;
   }, []);
 
-  /* Size the field to its box, and re-fit on resize. A resize clears the
-   * drawing, so the signed flag is reset with it rather than left lying. */
+  /* Size the field to its box, and re-fit when its width really changes. A phone
+   * resizes the window every time its address bar slides or its keyboard opens,
+   * neither of which touches the field; only turning the phone does, and then
+   * the signature comes along, scaled down if it has to be, rather than being
+   * wiped between signing and pressing Submit. */
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
     paintField(canvas);
 
-    let frame = 0;
-    const onResize = () => {
-      window.cancelAnimationFrame(frame);
-      frame = window.requestAnimationFrame(() => {
-        paintField(canvas);
-        if (hasStrokeRef.current) {
-          hasStrokeRef.current = false;
-          setHasStroke(false);
-          onChange?.(false);
-        }
-      });
-    };
+    let width = canvas.clientWidth;
+    const sizer = new ResizeObserver(() => {
+      if (!canvas.clientWidth || canvas.clientWidth === width) return;
+      width = canvas.clientWidth;
 
-    window.addEventListener("resize", onResize);
-    return () => {
-      window.cancelAnimationFrame(frame);
-      window.removeEventListener("resize", onResize);
-    };
-  }, [paintField, onChange]);
+      const signed = document.createElement("canvas");
+      signed.width = canvas.width;
+      signed.height = canvas.height;
+      signed.getContext("2d")?.drawImage(canvas, 0, 0);
+
+      const context = paintField(canvas);
+      if (!context || !hasStrokeRef.current) return;
+      const fit = Math.min(canvas.width / signed.width, canvas.height / signed.height, 1);
+      context.save();
+      context.setTransform(1, 0, 0, 1, 0, 0);
+      context.drawImage(signed, 0, 0, signed.width * fit, signed.height * fit);
+      context.restore();
+    });
+
+    sizer.observe(canvas);
+    return () => sizer.disconnect();
+  }, [paintField]);
 
   const pointFrom = (event: React.PointerEvent<HTMLCanvasElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
@@ -107,14 +117,13 @@ const SignaturePad = forwardRef<SignaturePadHandle, SignaturePadProps>(function 
     const context = canvas.getContext("2d");
     if (context && lastRef.current) {
       context.beginPath();
-      context.arc(lastRef.current.x, lastRef.current.y, 0.7, 0, Math.PI * 2);
+      context.arc(lastRef.current.x, lastRef.current.y, 0.8, 0, Math.PI * 2);
       context.fillStyle = STROKE;
       context.fill();
     }
 
     if (!hasStrokeRef.current) {
       hasStrokeRef.current = true;
-      setHasStroke(true);
       onChange?.(true);
     }
   };
@@ -152,7 +161,6 @@ const SignaturePad = forwardRef<SignaturePadHandle, SignaturePadProps>(function 
 
     paintField(canvas);
     hasStrokeRef.current = false;
-    setHasStroke(false);
     onChange?.(false);
   }, [paintField, onChange]);
 
@@ -183,19 +191,7 @@ const SignaturePad = forwardRef<SignaturePadHandle, SignaturePadProps>(function 
 
   return (
     <div>
-      <div className="flex items-baseline justify-between">
-        <span className="text-xs font-light uppercase tracking-widest2 text-white/60 sm:text-[13px]">
-          {label}
-        </span>
-        <button
-          type="button"
-          onClick={clear}
-          disabled={!hasStroke}
-          className="text-xs font-light uppercase tracking-widest2 text-white/45 underline-offset-4 transition-colors duration-500 hover:text-platinum disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:text-white/45 sm:text-[13px]"
-        >
-          Clear
-        </button>
-      </div>
+      <span className="block text-[12px] uppercase tracking-widest2 text-ink-soft">{label}</span>
 
       <canvas
         ref={canvasRef}
@@ -204,15 +200,26 @@ const SignaturePad = forwardRef<SignaturePadHandle, SignaturePadProps>(function 
         onPointerUp={endStroke}
         onPointerCancel={endStroke}
         onPointerLeave={endStroke}
-        aria-label={`${label} — draw with your mouse or finger`}
+        aria-label={`${label} — ${note}`}
         aria-invalid={invalid}
         // touch-action must be none or a touch drag scrolls the page instead
         // of drawing on the canvas.
         style={{ touchAction: "none" }}
-        className={`mt-3 h-44 w-full cursor-crosshair rounded-md border bg-[#080B0F] transition-colors duration-500 ${
-          invalid ? "border-red-400/50" : "border-white/15 hover:border-white/25"
+        className={`mt-3 h-44 w-full cursor-crosshair select-none rounded-md border bg-white transition-colors duration-500 [-webkit-touch-callout:none] ${
+          invalid ? "border-red-700/60" : "border-ink/20 hover:border-ink/35"
         }`}
       />
+
+      <div className="mt-3 flex items-center justify-between gap-4">
+        <p className="text-[13.5px] text-ink-muted">{note}</p>
+        <button
+          type="button"
+          onClick={clear}
+          className="shrink-0 border border-ink/30 px-5 py-3 text-[11.5px] uppercase tracking-widest2 text-ink-soft transition-colors duration-500 hover:border-ink hover:text-ink active:border-ink active:text-ink"
+        >
+          {clearLabel}
+        </button>
+      </div>
     </div>
   );
 });

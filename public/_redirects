@@ -1,0 +1,9 @@
+# Netlify reads this from the deploy root (public/ ships verbatim into out/).
+#
+# The site this one replaces served its pages as .html files. Permanent
+# redirects carry those addresses — and whatever search standing they have —
+# over to the new pages instead of letting them fall into a 404. None of these
+# files exist in the export, so the rules can never shadow a real page.
+/terms.html      /terms/     301
+/privacy.html    /privacy/   301
+/discover.html   /discover/  301

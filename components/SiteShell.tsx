@@ -1,5 +1,6 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import { createContext, useContext, useMemo, useState } from "react";
 
@@ -8,7 +9,8 @@ import SmoothScroll from "@/components/SmoothScroll";
 import { EASE_OUT_EXPO, ENTRANCE_TREMBLE } from "@/lib/motion";
 
 /**
- * Whether the visitor is through the age gate.
+ * Whether the visitor can see the page — through the age gate, or on a page
+ * the gate does not cover.
  *
  * The opening choreography waits on this: a headline that assembles itself
  * behind an opaque gate is an animation nobody sees.
@@ -19,6 +21,15 @@ export function useSiteEntered(): boolean {
   return useContext(EnteredContext);
 }
 
+/* The gate links to the Terms & Conditions and Privacy Policy — which must be
+ * readable before anyone accepts them. Those two pages are never gated. */
+const GATE_FREE = ["/terms", "/privacy"];
+
+const isGateFree = (pathname: string) => {
+  const path = pathname.replace(/\/$/, "") || "/";
+  return GATE_FREE.some((free) => path === free || path.startsWith(`${free}/`));
+};
+
 /* The tremble's shape at intensity 1 (ENTRANCE_TREMBLE in lib/motion.ts
  * scales all of it). Uneven and decaying on purpose: an even shake reads as a
  * phone buzzing, an uneven one that dies away reads as film settling in a
@@ -26,9 +37,11 @@ export function useSiteEntered(): boolean {
  * veil opacity — never more than three dips in a second, and only darkening. */
 const SHAKE_X = [0, 2.4, -2.1, 1.8, -1.6, 1.3, -1.1, 0.8, -0.6, 0.4, -0.25, 0.1, 0];
 const SHAKE_Y = [0, -1.6, 1.5, -1.2, 1, -0.9, 0.7, -0.5, 0.4, -0.25, 0.15, -0.05, 0];
-const FLICKER = [0, 0.18, 0.05, 0.14, 0.03, 0.1, 0.02, 0.05, 0];
+/* Gentler than it would be on a dark page: on porcelain a dip reads as a
+ * shadow passing, and anything deeper reads as a fault. */
+const FLICKER = [0, 0.1, 0.03, 0.08, 0.02, 0.06, 0.01, 0.03, 0];
 const FLICKER_TIMES = [0, 0.08, 0.2, 0.3, 0.45, 0.55, 0.7, 0.82, 1];
-const GRAIN = [0, 0.14, 0.1, 0];
+const GRAIN = [0, 0.12, 0.08, 0];
 
 /* FLICKER dips four times, first to last across 74% of the run. At 1.4s that
  * span is just over a second, so no one-second window ever holds more than
@@ -51,7 +64,7 @@ function EntranceFlicker({ intensity, duration }: { intensity: number; duration:
   return (
     <div aria-hidden className="pointer-events-none fixed inset-0 z-[998] overflow-hidden">
       <motion.div
-        className="absolute inset-0 bg-black"
+        className="absolute inset-0 bg-ink"
         initial={{ opacity: 0 }}
         animate={{ opacity: FLICKER.map((value) => clampOpacity(value * intensity)) }}
         transition={{ duration, times: FLICKER_TIMES, ease: "linear" }}
@@ -75,13 +88,15 @@ function EntranceFlicker({ intensity, duration }: { intensity: number; duration:
  * momentum scrolling wraps everything, and the age gate renders above it, so
  * the portal is gated by exactly the same component as the brand site.
  *
- * The shell also owns the entrance. The page is held dimmed and very slightly
- * scaled up while the gate is open, then settles into place as the gate
- * leaves — trembling as it lands, then going still. The motions overlap, so
- * it reads as one move.
+ * The shell also owns the entrance. The page is held very slightly scaled up
+ * while the gate is open, then settles into place as the gate leaves —
+ * trembling as it lands, then going still. The motions overlap, so it reads
+ * as one move.
  */
 export default function SiteShell({ children }: { children: React.ReactNode }) {
   const [entered, setEntered] = useState(false);
+  const gateFree = isGateFree(usePathname() ?? "/");
+  const gateOpen = !entered && !gateFree;
 
   const reduceMotion = useReducedMotion();
   const tremble = reduceMotion ? 0 : Math.max(ENTRANCE_TREMBLE.intensity, 0);
@@ -100,19 +115,23 @@ export default function SiteShell({ children }: { children: React.ReactNode }) {
 
   return (
     <SmoothScroll>
-      <AgeGate onEnter={() => setEntered(true)} />
+      <AgeGate open={gateOpen} onEnter={() => setEntered(true)} />
 
       {entered && tremble > 0 ? (
         <EntranceFlicker intensity={tremble} duration={trembleDuration} />
       ) : null}
 
-      <EnteredContext.Provider value={entered}>
+      <EnteredContext.Provider value={!gateOpen}>
         <motion.div
-          initial={{ opacity: 0, scale: settleFrom }}
+          // A page the gate does not cover is server-rendered in its resting
+          // state: nothing to settle into, and nothing hidden until hydration.
+          initial={gateFree ? false : { opacity: 0, scale: settleFrom }}
           animate={
-            entered
-              ? { opacity: 1, scale: 1, x: shake.x, y: shake.y }
-              : { opacity: 0.25, scale: settleFrom, x: 0, y: 0 }
+            gateOpen
+              ? { opacity: 0, scale: settleFrom, x: 0, y: 0 }
+              : entered
+                ? { opacity: 1, scale: 1, x: shake.x, y: shake.y }
+                : { opacity: 1, scale: 1, x: 0, y: 0 }
           }
           transition={{
             opacity: { duration: 1.5, ease: EASE_OUT_EXPO },

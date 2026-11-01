@@ -7,30 +7,30 @@ import SignaturePad, { type SignaturePadHandle } from "@/components/SignaturePad
 import { useSmoothScroll } from "@/components/SmoothScroll";
 import {
   ChoiceField,
-  FieldError,
   FormSection,
   GhostButton,
+  ReviewBanner,
   SelectField,
   TextAreaField,
   TextField,
 } from "@/components/order/Fields";
-import { ErrorNotice, ORDER_SUBMITTED, SuccessPanel } from "@/components/order/FormResult";
+import { ErrorNotice, SuccessPanel } from "@/components/order/FormResult";
 import ImageUpload, { type UploadedImage } from "@/components/order/ImageUpload";
 import { PresentationForType } from "@/components/order/Presentation";
-import { BUSINESS_TYPES, CASE_OPTIONS, STATES, type BusinessType } from "@/data/order";
+import {
+  BUSINESS_TYPES,
+  NEW_ACCOUNT_CASE_OPTIONS,
+  ORDER_COPY as COPY,
+  STATES,
+  type BusinessType,
+} from "@/data/order";
 import { EASE_LUX } from "@/lib/brand";
 import { mailtoFallback, submitForm, type FormPayload, type SubmitState } from "@/lib/submitForm";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const ZIP_PATTERN = /^\d{5}(?:-\d{4})?$/;
 
 const YES_NO = ["Yes", "No"] as const;
 type YesNo = (typeof YES_NO)[number];
-
-const LICENSE_NOTE = "Enter license number or upload image.";
-
-const CERTIFICATION =
-  "I hereby certify that I am 21 years of age or older and I have the authority to order alcoholic beverages on behalf of the above-mentioned establishment.";
 
 type FieldKey =
   | "state"
@@ -43,11 +43,12 @@ type FieldKey =
   | "contact"
   | "email"
   | "phone"
+  | "instructions"
   | "deliveryNote"
   | "taxId"
   | "license"
   | "signature";
-type Errors = Partial<Record<FieldKey, string>>;
+type Invalid = Partial<Record<FieldKey, true>>;
 
 /** A number field that can be satisfied by an uploaded image instead. */
 function VerificationField({
@@ -58,7 +59,7 @@ function VerificationField({
   onChange,
   image,
   onImage,
-  error,
+  invalid,
 }: {
   label: string;
   name: string;
@@ -67,7 +68,7 @@ function VerificationField({
   onChange: (value: string) => void;
   image: UploadedImage | null;
   onImage: (image: UploadedImage | null) => void;
-  error?: string;
+  invalid: boolean;
 }) {
   return (
     <div>
@@ -78,23 +79,29 @@ function VerificationField({
         onChange={onChange}
         placeholder={placeholder}
         autoComplete="off"
-        note={LICENSE_NOTE}
-        invalid={Boolean(error)}
+        note={COPY.licenseNote}
+        invalid={invalid}
       />
-      <ImageUpload name={`${name}-image`} value={image} onChange={onImage} invalid={Boolean(error)} />
-      <FieldError message={error} />
+      <ImageUpload
+        name={`${name}-image`}
+        value={image}
+        onChange={onImage}
+        buttonLabel={COPY.upload}
+        emptyLabel={COPY.noFile}
+        invalid={invalid}
+      />
     </div>
   );
 }
 
 /**
- * The first order from a new account.
+ * The first order from a new account — the live form, field for field.
  *
  * Four sections, top to bottom: the order itself (state, business type,
  * business name, cases), Delivery Details, Business Verification, then the
- * signature row — hint, certification, submit.
+ * signature, the certification and the submit button.
  */
-export default function OrderForm() {
+export default function OrderForm({ onClose }: { onClose: () => void }) {
   const smooth = useSmoothScroll();
 
   const [stateName, setStateName] = useState("");
@@ -115,9 +122,8 @@ export default function OrderForm() {
   const [taxIdImage, setTaxIdImage] = useState<UploadedImage | null>(null);
   const [license, setLicense] = useState("");
   const [licenseImage, setLicenseImage] = useState<UploadedImage | null>(null);
-  const [signed, setSigned] = useState(false);
 
-  const [errors, setErrors] = useState<Errors>({});
+  const [invalid, setInvalid] = useState<Invalid>({});
   const [attempt, setAttempt] = useState(0);
   const [status, setStatus] = useState<SubmitState>("idle");
 
@@ -125,32 +131,32 @@ export default function OrderForm() {
   const formRef = useRef<HTMLFormElement>(null);
   const signatureRef = useRef<SignaturePadHandle>(null);
 
-  /** Wraps a setter so fixing a field also clears its error. */
+  const clearInvalid = useCallback((key: FieldKey) => {
+    setInvalid((current) => {
+      if (!current[key]) return current;
+      const next = { ...current };
+      delete next[key];
+      return next;
+    });
+  }, []);
+
+  /** Wraps a setter so fixing a field also clears its highlight. */
   const field =
     <T,>(setter: (value: T) => void, key: FieldKey) =>
     (value: T) => {
       setter(value);
-      setErrors((current) => {
-        if (!current[key]) return current;
-        const next = { ...current };
-        delete next[key];
-        return next;
-      });
+      clearInvalid(key);
     };
 
   /* Must keep one identity for the life of the form: SignaturePad repaints —
    * and so wipes — its canvas whenever its onChange prop changes, so an inline
    * wrapper here would erase the signature on every keystroke elsewhere. */
-  const onSigned = useCallback((hasStroke: boolean) => {
-    setSigned(hasStroke);
-    if (!hasStroke) return;
-    setErrors((current) => {
-      if (!current.signature) return current;
-      const next = { ...current };
-      delete next.signature;
-      return next;
-    });
-  }, []);
+  const onSigned = useCallback(
+    (hasStroke: boolean) => {
+      if (hasStroke) clearInvalid("signature");
+    },
+    [clearInvalid],
+  );
 
   const attachments = (): Record<string, string> => {
     const files: Record<string, string> = {};
@@ -174,43 +180,34 @@ export default function OrderForm() {
       "Contact person": contact.trim(),
       "Contact email": email.trim(),
       "Phone number": phone.trim(),
-      "Additional delivery instructions": instructions === "Yes" ? "Yes" : "No",
+      "Additional delivery instructions": instructions,
       "Delivery note": instructions === "Yes" ? deliveryNote.trim() : "—",
       "Business tax ID number": taxId.trim() || (taxIdImage ? "See attached image" : "—"),
       "Liquor license number": license.trim() || (licenseImage ? "See attached image" : "—"),
-      Certification: CERTIFICATION,
+      Certification: COPY.certification,
     },
     attachments: attachments(),
   });
 
-  const validate = (): Errors => {
-    const next: Errors = {};
-    if (!stateName) next.state = "Required.";
-    if (!businessType) next.type = "Please choose one.";
-    if (!business.trim()) next.business = "Required.";
-    if (!cases) next.cases = "Required.";
-
-    if (!address.trim()) next.address = "Required.";
-    if (!city.trim()) next.city = "Required.";
-    if (!zip.trim()) next.zip = "Required.";
-    else if (!ZIP_PATTERN.test(zip.trim())) next.zip = "Enter a 5-digit ZIP code.";
-    if (!contact.trim()) next.contact = "Required.";
-    if (!email.trim()) next.email = "Required.";
-    else if (!EMAIL_PATTERN.test(email.trim())) next.email = "Enter a valid email address.";
-    if (!phone.trim()) next.phone = "Required.";
-    else if (phone.replace(/\D/g, "").length < 10) next.phone = "Enter a valid phone number.";
-    if (instructions === "Yes" && !deliveryNote.trim()) {
-      next.deliveryNote = "Please add your delivery note.";
-    }
-
-    if (!taxId.trim() && !taxIdImage) {
-      next.taxId = "Enter the tax ID number or upload an image.";
-    }
-    if (!license.trim() && !licenseImage) {
-      next.license = "Enter the license number or upload an image.";
-    }
-    if (signatureRef.current?.isEmpty() ?? true) next.signature = "Please sign above.";
-
+  /* The live form's rules: everything is required, the phone number is ten
+   * digits, and each verification is a number or an image. */
+  const validate = (): Invalid => {
+    const next: Invalid = {};
+    if (!stateName) next.state = true;
+    if (!businessType) next.type = true;
+    if (!business.trim()) next.business = true;
+    if (!cases) next.cases = true;
+    if (!address.trim()) next.address = true;
+    if (!city.trim()) next.city = true;
+    if (!zip.trim()) next.zip = true;
+    if (!contact.trim()) next.contact = true;
+    if (!EMAIL_PATTERN.test(email.trim())) next.email = true;
+    if (phone.replace(/\D/g, "").length !== 10) next.phone = true;
+    if (!instructions) next.instructions = true;
+    if (instructions === "Yes" && !deliveryNote.trim()) next.deliveryNote = true;
+    if (!taxId.trim() && !taxIdImage) next.taxId = true;
+    if (!license.trim() && !licenseImage) next.license = true;
+    if (signatureRef.current?.isEmpty() ?? true) next.signature = true;
     return next;
   };
 
@@ -219,7 +216,7 @@ export default function OrderForm() {
     if (status === "submitting") return;
 
     const next = validate();
-    setErrors(next);
+    setInvalid(next);
     if (Object.keys(next).length > 0) {
       setAttempt((count) => count + 1);
       return;
@@ -241,7 +238,7 @@ export default function OrderForm() {
   useEffect(() => {
     if (!attempt) return;
     const first = formRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]');
-    if (first) smooth.scrollTo(first, { offset: -140 });
+    if (first) smooth.scrollTo(first, { offset: -160 });
   }, [attempt, smooth]);
 
   // The confirmation replaces a form several screens tall — bring it into view.
@@ -249,143 +246,145 @@ export default function OrderForm() {
     if (status === "success" && topRef.current) smooth.scrollTo(topRef.current, { offset: -140 });
   }, [status, smooth]);
 
-  const hasErrors = Object.keys(errors).length > 0;
+  const hasInvalid = Object.keys(invalid).length > 0;
 
   return (
     <div ref={topRef}>
       {status === "success" ? (
-        <SuccessPanel message={ORDER_SUBMITTED} />
+        <SuccessPanel message={COPY.submitted} closeLabel={COPY.close} onClose={onClose} />
       ) : (
         <form ref={formRef} onSubmit={onSubmit} noValidate className="space-y-9">
+          {hasInvalid ? <ReviewBanner message={COPY.reviewFields} /> : null}
+
           <SelectField
-            label="State"
+            label={COPY.state}
             name="state"
             value={stateName}
             onChange={field(setStateName, "state")}
             options={STATES}
-            error={errors.state}
+            placeholder={COPY.statePlaceholder}
+            invalid={invalid.state}
             required
           />
 
           <ChoiceField
-            label="Business Type"
+            label={COPY.businessType}
             name="business-type"
             value={businessType}
             onChange={field(setBusinessType, "type")}
             options={BUSINESS_TYPES}
-            error={errors.type}
+            invalid={invalid.type}
           />
 
           {/* The presentation for the chosen type opens above the name. */}
           <div>
             <PresentationForType type={businessType} />
             <TextField
-              label="Name of Business"
+              label={COPY.businessName}
               name="business-name"
               value={business}
               onChange={field(setBusiness, "business")}
-              placeholder="Enter business name"
+              placeholder={COPY.businessNamePlaceholder}
               autoComplete="organization"
-              error={errors.business}
+              invalid={invalid.business}
               required
             />
           </div>
 
           <SelectField
-            label="Number of Cases"
+            label={COPY.cases}
             name="case-count"
             value={cases}
             onChange={field(setCases, "cases")}
-            options={CASE_OPTIONS}
-            note="Each case contains 6 bottles."
-            error={errors.cases}
+            options={NEW_ACCOUNT_CASE_OPTIONS}
+            placeholder={COPY.casesPlaceholder}
+            note={COPY.casesNote}
+            invalid={invalid.cases}
             required
           />
 
-          <FormSection title="Delivery Details">
+          <FormSection title={COPY.deliveryDetails}>
             <TextField
-              label="Delivery Address"
+              label={COPY.address}
               name="delivery-address"
               value={address}
               onChange={field(setAddress, "address")}
-              placeholder="Enter street address"
               autoComplete="street-address"
-              error={errors.address}
+              invalid={invalid.address}
               required
             />
 
             <div className="grid gap-9 sm:grid-cols-2 sm:gap-6">
               <TextField
-                label="City"
+                label={COPY.city}
                 name="city"
                 value={city}
                 onChange={field(setCity, "city")}
-                placeholder="Enter city"
                 autoComplete="address-level2"
-                error={errors.city}
+                invalid={invalid.city}
                 required
               />
               <TextField
-                label="ZIP Code"
+                label={COPY.zip}
                 name="zip"
                 value={zip}
                 onChange={field(setZip, "zip")}
-                placeholder="Enter ZIP code"
                 autoComplete="postal-code"
                 inputMode="numeric"
-                error={errors.zip}
+                invalid={invalid.zip}
                 required
               />
             </div>
 
             <TextField
-              label="Contact Person Name"
+              label={COPY.contact}
               name="contact-name"
               value={contact}
               onChange={field(setContact, "contact")}
-              placeholder="Enter full name"
               autoComplete="name"
-              error={errors.contact}
+              invalid={invalid.contact}
               required
             />
 
             <div className="grid gap-9 sm:grid-cols-2 sm:gap-6">
               <TextField
-                label="Contact Email"
+                label={COPY.email}
                 name="contact-email"
                 type="email"
                 value={email}
                 onChange={field(setEmail, "email")}
-                placeholder="Enter email address"
+                placeholder={COPY.emailPlaceholder}
                 autoComplete="email"
                 inputMode="email"
-                error={errors.email}
+                invalid={invalid.email}
                 required
               />
               <TextField
-                label="Phone Number"
+                label={COPY.phone}
                 name="phone"
                 type="tel"
                 value={phone}
                 onChange={field(setPhone, "phone")}
-                placeholder="Enter phone number"
+                placeholder={COPY.phonePlaceholder}
                 autoComplete="tel"
                 inputMode="tel"
-                error={errors.phone}
+                invalid={invalid.phone}
                 required
               />
             </div>
 
             <div>
               <ChoiceField
-                label="Additional Delivery Instructions"
+                label={COPY.instructions}
                 name="delivery-instructions"
                 value={instructions}
                 onChange={(value) => {
                   setInstructions(value);
+                  clearInvalid("instructions");
                   if (value === "No") field(setDeliveryNote, "deliveryNote")("");
                 }}
                 options={YES_NO}
+                invalid={invalid.instructions}
               />
 
               {/* Yes opens the note; No leaves nothing behind. */}
@@ -401,12 +400,12 @@ export default function OrderForm() {
                   >
                     <div className="pt-9">
                       <TextAreaField
-                        label="Delivery Note"
+                        label={COPY.deliveryNote}
                         name="delivery-note"
                         value={deliveryNote}
                         onChange={field(setDeliveryNote, "deliveryNote")}
-                        placeholder="Loading dock, opening hours, who to ask for…"
-                        error={errors.deliveryNote}
+                        placeholder={COPY.deliveryNotePlaceholder}
+                        invalid={invalid.deliveryNote}
                       />
                     </div>
                   </motion.div>
@@ -415,67 +414,61 @@ export default function OrderForm() {
             </div>
           </FormSection>
 
-          <FormSection title="Business Verification">
+          <FormSection title={COPY.verification}>
             <div className="grid gap-12 md:grid-cols-2 md:gap-8">
               <VerificationField
-                label="Business Tax ID Number"
+                label={COPY.taxId}
                 name="tax-id"
-                placeholder="Enter Business Tax ID Number"
+                placeholder={COPY.taxIdPlaceholder}
                 value={taxId}
                 onChange={field(setTaxId, "taxId")}
                 image={taxIdImage}
                 onImage={field(setTaxIdImage, "taxId")}
-                error={errors.taxId}
+                invalid={Boolean(invalid.taxId)}
               />
               <VerificationField
-                label="Liquor License Number"
+                label={COPY.license}
                 name="liquor-license"
-                placeholder="Enter Liquor License Number"
+                placeholder={COPY.licensePlaceholder}
                 value={license}
                 onChange={field(setLicense, "license")}
                 image={licenseImage}
                 onImage={field(setLicenseImage, "license")}
-                error={errors.license}
+                invalid={Boolean(invalid.license)}
               />
             </div>
 
             <div>
               <SignaturePad
                 ref={signatureRef}
+                label={COPY.signature}
+                note={COPY.signatureNote}
+                clearLabel={COPY.clear}
                 onChange={onSigned}
-                invalid={Boolean(errors.signature) && !signed}
+                invalid={invalid.signature}
               />
-              {errors.signature && !signed ? <FieldError message={errors.signature} /> : null}
+              {invalid.signature ? (
+                <p className="mt-3 text-[13.5px] text-red-800">{COPY.signatureMissing}</p>
+              ) : null}
 
-              {/* Hint left, certification centre, submit right. */}
-              <div className="mt-6 grid gap-6 md:grid-cols-[minmax(0,0.8fr)_minmax(0,1.7fr)_auto] md:items-start md:gap-8">
-                <p className="text-[13px] font-light leading-relaxed text-white/50">
-                  Sign with mouse or touch.
-                </p>
-                <p className="text-balance text-center text-[13px] font-light leading-relaxed text-white/60">
-                  {CERTIFICATION}
-                </p>
+              <p className="mt-8 text-pretty text-[14px] leading-relaxed text-ink-soft">{COPY.certification}</p>
+
+              {status === "error" ? (
+                <div className="mt-6">
+                  <ErrorNotice message={COPY.orderFailed} mailto={mailtoFallback(buildPayload())} />
+                </div>
+              ) : null}
+
+              <div className="mt-8">
                 <GhostButton
                   type="submit"
                   disabled={status === "submitting"}
                   pulsing={status === "submitting"}
-                  className="w-full md:w-auto md:justify-self-end"
+                  className="w-full sm:w-auto sm:min-w-[14rem]"
                 >
-                  {status === "submitting" ? "Submitting" : "Submit Order"}
+                  {status === "submitting" ? COPY.submitting : COPY.submit}
                 </GhostButton>
               </div>
-
-              {hasErrors ? (
-                <p className="mt-6 text-center text-[13px] font-light text-red-300/85 md:text-right">
-                  Please complete the highlighted fields.
-                </p>
-              ) : null}
-
-              {status === "error" ? (
-                <div className="mt-6">
-                  <ErrorNotice mailto={mailtoFallback(buildPayload())} />
-                </div>
-              ) : null}
             </div>
           </FormSection>
         </form>

@@ -4,42 +4,68 @@
 
 /* --------------------------------------------------------------------------
    Palette
-   --fo-gradient is written onto <body> from product.gradient in layout.tsx,
-   so the data layer stays the single source of truth for the brand ground.
+   Porcelain is the page; linen is the stage the bottle stands on, and must
+   match STAGE in scripts/build-bottle.mjs — the glass is pre-composited onto
+   it. The full scale lives in tailwind.config.ts.
    -------------------------------------------------------------------------- */
 :root {
-  --fo-gradient: linear-gradient(135deg, #0a0e13 0%, #2c3e4c 100%);
-  --fo-ice: #bfd3e0;
-  --fo-ink: #05070a;
+  --fo-porcelain: #ab9f8c;
+  --fo-linen: #9f937f;
+  --fo-ink: #141210;
+  --fo-gold: #a8882c;
+  --fo-gold-light: #e3cc8a;
+  /* One percent of the small viewport, for use inside calc(): a browser without
+   * svh drops a whole declaration that names it, which would throw the opening
+   * out of place rather than merely make it a little tall. */
+  --svh: 1vh;
+}
+
+@supports (height: 1svh) {
+  :root {
+    --svh: 1svh;
+  }
 }
 
 @layer base {
   html {
     -webkit-text-size-adjust: 100%;
+    background: var(--fo-porcelain);
+  }
+
+  /* No grey flash on a tap, and no wait to see whether it was half a double-tap. */
+  a,
+  button,
+  label,
+  select,
+  input,
+  textarea {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
   }
 
   body {
-    background: var(--fo-gradient) fixed;
-    color: #e8edf2;
+    background: var(--fo-porcelain);
+    color: #211d19;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
     overflow-x: hidden;
   }
 
   ::selection {
-    background: var(--fo-ice);
+    background: var(--fo-gold-light);
     color: var(--fo-ink);
   }
 
   ::-moz-selection {
-    background: var(--fo-ice);
+    background: var(--fo-gold-light);
     color: var(--fo-ink);
   }
 
   /* An app-like scrollbar: present enough to orient, quiet enough to ignore. */
   * {
     scrollbar-width: thin;
-    scrollbar-color: rgba(191, 211, 224, 0.18) transparent;
+    scrollbar-color: rgba(20, 18, 16, 0.32) transparent;
   }
 
   ::-webkit-scrollbar {
@@ -52,40 +78,22 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    background: rgba(191, 211, 224, 0.18);
+    background: rgba(20, 18, 16, 0.32);
     border-radius: 999px;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background: rgba(191, 211, 224, 0.32);
+    background: rgba(20, 18, 16, 0.5);
   }
 
   /* Focus rings stay visible for keyboard users, invisible for mouse users. */
   :focus-visible {
-    outline: 1px solid rgba(191, 211, 224, 0.7);
+    outline: 1px solid var(--fo-ink);
     outline-offset: 3px;
   }
 }
 
 @layer utilities {
-  /* Platinum -> ice blue, used on the wordmark and display headings.
-   *
-   * The padding is load-bearing, not decoration. `background-clip: text` paints
-   * the gradient only inside the element's padding box; the glyphs themselves
-   * are transparent. Display headings here run at line-height 0.95-1.05, which
-   * makes the padding box shorter than the type, so descenders on g/p/y/j/q
-   * fall outside it, receive no paint, and read as sliced off. Extending the
-   * box downward fixes it, and the matching negative margin keeps every layout
-   * that depends on this class exactly where it was. */
-  .text-metal {
-    background-image: linear-gradient(180deg, #ffffff 0%, #e8edf2 38%, #bfd3e0 100%);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-    padding-bottom: 0.18em;
-    margin-bottom: -0.18em;
-  }
-
   /* Full-screen stages.
    *
    * 100vh on iOS is the *large* viewport — the height with the browser chrome
@@ -104,19 +112,36 @@
     min-height: 100svh;
   }
 
-  /* The opening: one stage of height plus a short run of scroll travel —
-   * enough for the side plates to glide in, never long enough to feel like
-   * the page is being held hostage. */
-  .h-hero {
-    height: 175vh;
-    height: 175svh;
+  /* A stage that also fills the screen once the address bar has slid away. Its
+   * content stays inside an .h-stage box at the top, so nothing is ever behind
+   * the bar; with the bar gone, the same ground simply carries on underneath
+   * instead of ending in a line across the screen. */
+  .h-stage-full {
+    height: 100vh;
+    height: 100lvh;
   }
 
-  /* Film grain, rasterised once from an SVG noise filter and tiled. Static on
-   * purpose: an animated grain repaints the whole viewport every frame. */
+  /* The opening: one stage of height plus the run of scroll travel that turns
+   * the bottle once — long enough to feel the spin, never long enough to feel
+   * like the page is being held hostage. */
+  .h-hero {
+    height: 240vh;
+    height: 240svh;
+  }
+
+  /* Film grain, rasterised once from an SVG noise filter and tiled. Dark
+   * grain, for light grounds. Static on purpose: an animated grain repaints
+   * the whole viewport every frame. */
   .bg-grain {
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.55 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.09 0 0 0 0 0.08 0 0 0 0 0.07 0 0 0 0.6 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
     background-size: 180px 180px;
+  }
+
+  /* A short rise into place, run by CSS rather than script so it plays from
+   * the very first paint — the age gate's card is never invisible while the
+   * page is still hydrating. */
+  .animate-fo-rise {
+    animation: fo-rise 1s cubic-bezier(0.16, 1, 0.3, 1) both;
   }
 
   /* The same grain set moving, for the entrance tremble only. Stepped, so it
@@ -146,11 +171,6 @@
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 
-  .inset-x-safe {
-    padding-left: env(safe-area-inset-left, 0px);
-    padding-right: env(safe-area-inset-right, 0px);
-  }
-
   .scrollbar-none {
     scrollbar-width: none;
   }
@@ -161,83 +181,38 @@
 }
 
 /* --------------------------------------------------------------------------
-   Age gate atmosphere
-   Everything here animates transform and opacity only, so the whole scene
-   runs on the compositor — no layout, no paint, even on a phone.
+   Age gate light
+   Two soft pools of warm light drifting against each other. Transform and
+   opacity only, so the scene runs on the compositor — even on a phone.
    -------------------------------------------------------------------------- */
-@keyframes fo-mist {
+@keyframes fo-drift {
   from {
-    transform: translate3d(-12%, 0, 0);
+    transform: translate3d(-8%, -4%, 0) scale(1);
   }
   to {
-    transform: translate3d(12%, 0, 0);
+    transform: translate3d(8%, 5%, 0) scale(1.08);
   }
 }
 
-@keyframes fo-flicker {
-  0%,
-  100% {
-    opacity: 0.9;
-  }
-  18% {
-    opacity: 1;
-  }
-  32% {
-    opacity: 0.78;
-  }
-  47% {
-    opacity: 0.96;
-  }
-  63% {
-    opacity: 0.84;
-  }
-  81% {
-    opacity: 1;
-  }
-}
-
-@keyframes fo-ember {
-  0% {
-    transform: translate3d(0, 0, 0) scale(1);
-    opacity: 0;
-  }
-  12% {
-    opacity: 1;
-  }
-  70% {
-    opacity: 0.75;
-  }
-  100% {
-    transform: translate3d(var(--fo-drift, 24px), -82vh, 0) scale(0.35);
-    opacity: 0;
-  }
-}
-
-/* A long, shallow S across the sky — bats glide far more than they flap. */
-@keyframes fo-bat-fly {
-  0% {
-    transform: translate3d(-12vw, 0, 0) rotate(-4deg);
-  }
-  25% {
-    transform: translate3d(22vw, -3vh, 0) rotate(3deg);
-  }
-  50% {
-    transform: translate3d(52vw, 2vh, 0) rotate(-2deg);
-  }
-  75% {
-    transform: translate3d(82vw, -2vh, 0) rotate(4deg);
-  }
-  100% {
-    transform: translate3d(116vw, 1vh, 0) rotate(-3deg);
-  }
-}
-
-@keyframes fo-bat-flap {
+@keyframes fo-rise {
   from {
-    transform: scaleY(1);
+    opacity: 0;
+    transform: translate3d(0, 16px, 0);
   }
   to {
-    transform: scaleY(0.42);
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* A slow sweep of light across the gilded rule under the wordmark. */
+@keyframes fo-sheen {
+  0% {
+    transform: translateX(-120%);
+  }
+  55%,
+  100% {
+    transform: translateX(120%);
   }
 }
 
@@ -285,12 +260,92 @@
   }
 }
 
-@keyframes fo-sway {
-  from {
-    transform: rotate(-1.4deg);
+/* --------------------------------------------------------------------------
+   The opening's geometry
+   Everything on the stage is placed from these. --bottle-h is the height of the
+   bottle's whole crop, of which the bottle and plinth fill 95%: a little empty
+   crop is left above the cap, and --bottle-foot of it below the plinth. Each
+   height is the bottle's full size, capped by the room it has, so the short
+   phones that cannot fit it lose a little rather than run it into the type.
+   Stacked: the name in one line, the tagline, then the bottle.
+   Flanked: the bottle between the two words, its cap clear of the navbar.
+   -------------------------------------------------------------------------- */
+.hero-stage {
+  --nav-h: 4rem;
+  --name-top: calc(4.5rem + env(safe-area-inset-top, 0px));
+  --name-size: 11vw;
+  --name-lift: 0px;
+  --line-gap: 0.375rem;
+  --line-height: 1.32rem;
+  --line-count: 1;
+  --head: calc(
+    var(--name-top) + var(--name-size) + var(--line-gap) + var(--line-height) * var(--line-count)
+  );
+  --floor: calc(var(--svh) * 2.5);
+  --bottle-h: min(
+    calc(var(--svh) * 74.4),
+    672px,
+    calc((var(--svh) * 100 - var(--head) - var(--floor) - 0.5rem) / 0.95)
+  );
+  --bottle-w: calc(var(--bottle-h) * 0.4194);
+  --bottle-foot: calc(var(--bottle-h) * 0.0266);
+  --hero-shift: 64vw;
+}
+
+/* Where the tagline no longer fits on one line. */
+@media (max-width: 339.98px) {
+  .hero-stage {
+    --line-count: 2;
   }
-  to {
-    transform: rotate(1.4deg);
+}
+
+@media (min-width: 640px) {
+  .hero-stage {
+    --nav-h: 5rem;
+    --name-top: calc(6.5rem + env(safe-area-inset-top, 0px));
+    --name-size: 10vw;
+    --line-gap: 0.5rem;
+    --line-height: 1.53rem;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 520px) {
+  .hero-stage {
+    --nav-h: 3.5rem;
+  }
+}
+
+@media (min-width: 1024px), (orientation: landscape) {
+  .hero-stage {
+    --name-size: min(9.3vw, calc(var(--svh) * 15.5));
+    --name-lift: calc(var(--svh) * 6);
+    --floor: calc(var(--svh) * 2);
+    --bottle-h: min(
+      calc(var(--svh) * 91.2),
+      1008px,
+      calc((var(--svh) * 98 - var(--nav-h) - 0.25rem) / 0.95)
+    );
+  }
+}
+
+@media (min-width: 1024px) {
+  .hero-stage {
+    --nav-h: 5rem;
+    --hero-shift: 36vw;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   A phone on its side
+   A notch takes more of the width than a page's gutter does. Both sides clear
+   the wider inset, so whatever is centred stays centred. The selector is doubled
+   because Tailwind writes its sm: padding after everything in this file, and on
+   a phone that wide, order alone would hand it the win.
+   -------------------------------------------------------------------------- */
+@media (orientation: landscape) and (max-width: 1023.98px) {
+  .safe-gutter.safe-gutter {
+    padding-left: max(2.5rem, env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px));
+    padding-right: max(2.5rem, env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px));
   }
 }
 

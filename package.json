@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "prepare-assets": "node scripts/prepare-assets.mjs",
+    "build-bottle": "node --max-old-space-size=8192 scripts/build-bottle.mjs",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",

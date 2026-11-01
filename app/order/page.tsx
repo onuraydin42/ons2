@@ -6,11 +6,12 @@ import OrderPortal from "@/components/order/OrderPortal";
  * The trade portal.
  *
  * Reachable only by typing https://www.fluidounce.co/order — nothing on the
- * public site links here, there is no sitemap entry, and the route is excluded
- * from indexing both here and in public/robots.txt.
+ * public site links here, the sitemap leaves it out, and the route is
+ * excluded from indexing both here and in public/robots.txt.
  */
 export const metadata: Metadata = {
-  title: "Place Order | FLUID OUNCE",
+  // The layout's title template adds "| FLUID OUNCE".
+  title: "Place Order",
   robots: { index: false, follow: false },
 };
 

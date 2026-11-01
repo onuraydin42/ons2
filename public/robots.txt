@@ -3,3 +3,5 @@ Allow: /
 
 # Trade portal — reachable by direct URL only.
 Disallow: /order
+
+Sitemap: https://www.fluidounce.co/sitemap.xml
