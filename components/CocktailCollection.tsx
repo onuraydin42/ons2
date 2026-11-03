@@ -134,7 +134,7 @@ export default function CocktailCollection() {
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
       style={{ touchAction: "pan-y pinch-zoom" }}
-      className="relative min-h-[46rem] overflow-hidden bg-porcelain lg:h-stage lg:min-h-[44rem] short:min-h-0"
+      className="ground-wood relative min-h-[46rem] overflow-hidden bg-porcelain lg:h-stage lg:min-h-[44rem] short:min-h-0"
       aria-roledescription="carousel"
       aria-label="Cocktails"
     >

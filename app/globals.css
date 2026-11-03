@@ -9,11 +9,12 @@
    it. The full scale lives in tailwind.config.ts.
    -------------------------------------------------------------------------- */
 :root {
-  --fo-porcelain: #ab9f8c;
-  --fo-linen: #9f937f;
-  --fo-ink: #141210;
-  --fo-gold: #a8882c;
-  --fo-gold-light: #e3cc8a;
+  --fo-porcelain: #a19a89;
+  --fo-linen: #938c7b;
+  --fo-char: #141311;
+  --fo-ink: #12110f;
+  --fo-gold: #b8923a;
+  --fo-gold-light: #e8d394;
   /* One percent of the small viewport, for use inside calc(): a browser without
    * svh drops a whole declaration that names it, which would throw the opening
    * out of place rather than merely make it a little tall. */
@@ -45,7 +46,7 @@
 
   body {
     background: var(--fo-porcelain);
-    color: #211d19;
+    color: #1e1b17;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
@@ -332,6 +333,106 @@
   .hero-stage {
     --nav-h: 5rem;
     --hero-shift: 36vw;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Burnt timber
+   The dark ground of the brand's world, drawn by scripts/build-wood.mjs. On the
+   stone sections only its shadows are laid on, and only just: the page should feel
+   like it has grain before anyone could say why. Behind the bottle there is none at
+   all, because the glass is relit onto the plain stage and has no way to show it.
+   -------------------------------------------------------------------------- */
+.ground-wood {
+  position: relative;
+  isolation: isolate;
+}
+
+.ground-wood::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: url("/images/wood/grain.webp") 50% 0 / 1640px 1640px repeat;
+  opacity: 0.06;
+}
+
+.hero-wood {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: url("/images/wood/grain.webp") 50% 0 / 1640px 1640px repeat;
+  opacity: 0.09;
+  --hero-wood-mask: linear-gradient(
+    90deg,
+    #000 calc(50% - var(--bottle-w) * 1.2),
+    transparent calc(50% - var(--bottle-w) * 0.58),
+    transparent calc(50% + var(--bottle-w) * 0.58),
+    #000 calc(50% + var(--bottle-w) * 1.2)
+  );
+  -webkit-mask-image: var(--hero-wood-mask);
+  mask-image: var(--hero-wood-mask);
+}
+
+@media (max-width: 767.98px) {
+  .ground-wood::before,
+  .hero-wood {
+    background-size: 1140px 1140px;
+  }
+}
+
+/* The sections that are the timber itself. Darkened a little more toward the edges,
+ * so the ridges never run through a line of type at full strength. */
+.char-ground {
+  position: relative;
+  isolation: isolate;
+  background-color: var(--fo-char);
+  color: #f1ece3;
+}
+
+.char-ground::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -3;
+  background: url("/images/wood/char.webp") 50% 0 / 1536px 1536px repeat;
+}
+
+.char-ground::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  background: linear-gradient(rgba(20, 19, 17, 0.54), rgba(20, 19, 17, 0.68));
+}
+
+/* A lamp held to it: with a mouse, the raised grain catches the light as it passes.
+ * It is out until the cursor is on the section, so nothing lights the ridges behind
+ * a line of type that is only being read. */
+.char-lamp {
+  display: none;
+}
+
+@media (pointer: fine) {
+  .char-lamp {
+    display: block;
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background: url("/images/wood/light.webp") 50% 0 / 1536px 1536px repeat;
+    opacity: var(--lamp-on, 0);
+    transition: opacity 0.7s ease;
+    --char-lamp-mask: radial-gradient(
+      440px 440px at var(--lamp-x, 50%) var(--lamp-y, 35%),
+      #000 0%,
+      rgba(0, 0, 0, 0.45) 42%,
+      rgba(0, 0, 0, 0.12) 68%,
+      transparent 86%
+    );
+    -webkit-mask-image: var(--char-lamp-mask);
+    mask-image: var(--char-lamp-mask);
   }
 }
 

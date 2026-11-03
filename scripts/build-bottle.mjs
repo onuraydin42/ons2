@@ -30,7 +30,18 @@
  *     back every second or so; the plinth's logo never moves, so it measures by
  *     how much, and each frame is deblurred by that amount. Without this the
  *     bottle visibly pulses in and out of focus as it turns.
- *  7. Sharpens, and writes the revolution as WebP frames at two sizes, played
+ *  7. Reprints the bottle. A 360 kb/s film cannot hold small type, and no amount
+ *     of sharpening brings back what it threw away. But the bottle is rigid and
+ *     the camera is fixed, so scripts/bottle-label.json knows exactly where each
+ *     printed face is in every frame (scripts/fit-bottle-label.mjs). The film's
+ *     smeared print is painted out of the frost, and the print itself, as vector
+ *     artwork (images2/bottle-label-*.svg), is laid back on at each output's own
+ *     resolution. It is as sharp at the end of the turn as at the start of it.
+ *  8. Takes the glare off the foot. The glass foot's chamfer catches the plinth's
+ *     lamp at some angles only, and flares white past the frost as it passes. The
+ *     foot's outline comes from its geometry instead, and its highlights are held
+ *     to the frost's own level.
+ *  9. Sharpens, and writes the revolution as WebP frames at two sizes, played
  *     by components/BottleSpin.tsx.
  *
  * Frames rather than a film: a video's decoded colour never exactly matches
@@ -66,7 +77,7 @@ const LIB = path.join(ROOT, "lib", "bottle.ts");
 
 /* The opening's stage, and the page behind every bottle. Must match the
  * `linen` colour in tailwind.config.ts: the glass is relit onto it. */
-const STAGE = process.env.BOTTLE_STAGE ?? "#9F937F";
+const STAGE = process.env.BOTTLE_STAGE ?? "#938C7B";
 
 /* The film speeds up before and after this stretch; within it the turntable
  * runs at a steady 618 frames (20.6 s) per revolution, and frame 476 has the
@@ -86,11 +97,12 @@ const CH = CROP.h;
 const CROP_BYTES = CW * CH * 3;
 
 /* Frame sets: the crop's height in pixels, and how many frames of the
- * revolution each carries. Phones get every other frame, smaller. There is no
- * middle size: a resized set carries more detail per pixel than the source, so
- * it came out larger on disk than the 1240 set it was meant to save on. */
+ * revolution each carries. The large set is bigger than the film, because the
+ * print is not limited by the film: at this size it stays sharp on a 3x phone and
+ * a 2x laptop alike. The small set has every other frame, for thumbnails and for
+ * devices that would struggle to carry the large one. */
 const SETS = [
-  { size: 1240, frames: 618 },
+  { size: 1550, frames: 618 },
   { size: 720, frames: 309 },
 ];
 
@@ -128,7 +140,36 @@ const PLINTH_LOGO = { left: 124, top: 1024, width: 268, height: 170 };
 const LOGO_LEVEL = 205;
 const LOGO_SOFTNESS = 30;
 
-const WEBP = { quality: 84, alphaQuality: 100, effort: 6, smartSubsample: true };
+const WEBP = { quality: 66, alphaQuality: 70, effort: 6, smartSubsample: false };
+
+/* The print: the fitted geometry, the artwork's raster resolution (pixels per unit
+ * of the face's plane, where a unit is about a pixel of the film), and the ink. */
+const LABEL = JSON.parse(fs.readFileSync(path.join(ROOT, "scripts", "bottle-label.json"), "utf8"));
+const ARTWORK_SCALE = 8;
+const INK = [24, 24, 27];
+const INK_OPACITY = 0.95;
+/* The face fades in over this range of cos(angle to camera): edge on, a line of
+ * print would be narrower than a pixel. */
+const PRINT_FADE = [0.1, 0.24];
+/* How far past the print the film's smear of it is painted out, in film pixels. */
+const ERASE_RADIUS = 7;
+const ERASE_FEATHER = 3;
+
+/* The foot's glare: from GLARE_TOP (none) to GLARE_FULL (all), highlights are held
+ * to the frost's level, measured per frame in FROST_BAND. */
+const GLARE_TOP = 790;
+const GLARE_FULL = 870;
+const FROST_BAND = [780, 860];
+const GLARE_MARGIN = 2;
+const GLARE_KNEE = 5;
+/* Over the plinth, nothing inside the outline is let further below the frost than
+ * this: it is the plinth showing through the rim, in the film's blocky copy. */
+const FOOT_DEPTH = 30;
+const FOOT_DEPTH_KNEE = 6;
+/* The frost's flat areas lose the film's blotchy compression: only where the local
+ * range stays under this does the smoothing apply, so every real edge is kept. */
+const CALM_RANGE = [5, 11];
+const CALM_SIGMA = 3;
 
 const log = (...a) => console.log(...a);
 
@@ -1004,6 +1045,421 @@ function toRgba(rgb, alpha) {
   return out;
 }
 
+/* -------------------------------------------------------------- the print */
+
+const STEP = (2 * Math.PI) / LOOP_LENGTH;
+
+const camera = {
+  ...LABEL.camera,
+  cosP: Math.cos(LABEL.camera.pitch),
+  sinP: Math.sin(LABEL.camera.pitch),
+  cosR: Math.cos(LABEL.camera.roll),
+  sinR: Math.sin(LABEL.camera.roll),
+};
+
+/** A point in bottle space (X across, Y down, Z out) to the crop, in one frame. */
+function toCrop(theta, X0, Y0, Z0) {
+  const c = Math.cos(theta);
+  const s = Math.sin(theta);
+  const X = X0 * c + Z0 * s;
+  const Zr = -X0 * s + Z0 * c;
+  const Yr = Y0 + camera.y0;
+  const Y = Yr * camera.cosP - Zr * camera.sinP;
+  const Z = Yr * camera.sinP + Zr * camera.cosP;
+  const k = camera.D / (camera.D - Z);
+  const x = (X - camera.e) * k + camera.e;
+  const y = Y * k;
+  return [camera.ax + x * camera.cosR - y * camera.sinR, camera.py + x * camera.sinR + y * camera.cosR];
+}
+
+/** The smallest solve: the homography taking four points to four points. */
+function homography(from, to) {
+  const m = [];
+  const v = [];
+  for (let i = 0; i < 4; i++) {
+    const [u, w] = from[i];
+    const [x, y] = to[i];
+    m.push([u, w, 1, 0, 0, 0, -u * x, -w * x]);
+    v.push(x);
+    m.push([0, 0, 0, u, w, 1, -u * y, -w * y]);
+    v.push(y);
+  }
+  const h = solve(m, v);
+  return [h[0], h[1], h[2], h[3], h[4], h[5], h[6], h[7], 1];
+}
+
+function invert3(a) {
+  const [m00, m01, m02, m10, m11, m12, m20, m21, m22] = a;
+  const c00 = m11 * m22 - m12 * m21;
+  const c01 = m12 * m20 - m10 * m22;
+  const c02 = m10 * m21 - m11 * m20;
+  const d = m00 * c00 + m01 * c01 + m02 * c02;
+  return [
+    c00 / d, (m02 * m21 - m01 * m22) / d, (m01 * m12 - m02 * m11) / d,
+    c01 / d, (m00 * m22 - m02 * m20) / d, (m02 * m10 - m00 * m12) / d,
+    c02 / d, (m01 * m20 - m00 * m21) / d, (m00 * m11 - m01 * m10) / d,
+  ];
+}
+
+const smooth = (t) => t * t * (3 - 2 * t);
+const smoothstep = (a, b, v) => smooth(Math.min(Math.max((v - a) / (b - a), 0), 1));
+
+/** Rasters a face's artwork once, and finds where its ink actually is. */
+async function loadFaces() {
+  const faces = [];
+  for (const [name, face] of Object.entries(LABEL.faces)) {
+    // The artwork's own viewBox says which part of the face's plane it covers.
+    const source = fs.readFileSync(path.join(ROOT, "images2", face.artwork), "utf8");
+    const [u0, w0, spanU, spanW] = source.match(/viewBox="([^"]+)"/)[1].split(" ").map(Number);
+    const width = Math.round(spanU * ARTWORK_SCALE);
+    const height = Math.round(spanW * ARTWORK_SCALE);
+    const svg = source.replace("<svg ", `<svg width="${width}" height="${height}" `);
+    const { data, info } = await sharp(Buffer.from(svg))
+      .ensureAlpha()
+      .extractChannel(3)
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    const ink = new Uint8Array(width * height);
+    let [left, top, right, bottom] = [width, height, 0, 0];
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const v = data[(y * width + x) * info.channels];
+        ink[y * width + x] = v;
+        if (v > 8) {
+          if (x < left) left = x;
+          if (x > right) right = x;
+          if (y < top) top = y;
+          if (y > bottom) bottom = y;
+        }
+      }
+    }
+    const first = face.corrections[0][0];
+    faces.push({
+      ...face,
+      name,
+      u0,
+      w0,
+      width,
+      height,
+      ink,
+      first,
+      // The ink's bounds, in the face's plane.
+      bounds: [
+        u0 + left / ARTWORK_SCALE,
+        w0 + top / ARTWORK_SCALE,
+        u0 + (right + 1) / ARTWORK_SCALE,
+        w0 + (bottom + 1) / ARTWORK_SCALE,
+      ],
+    });
+  }
+  log(`[print]  ${faces.map((f) => f.name).join(", ")} rastered`);
+  return faces;
+}
+
+/** Where a face is in frame n, or null when it is turned away. */
+function placeFace(face, n) {
+  // Frames are counted from the middle of the face's own visible run.
+  const centre = face.corrections[(face.corrections.length - 1) >> 1][0];
+  let k = n;
+  while (k - centre > LOOP_LENGTH / 2) k -= LOOP_LENGTH;
+  while (k - centre < -LOOP_LENGTH / 2) k += LOOP_LENGTH;
+  const at = Math.min(Math.max(k - face.first, 0), face.corrections.length - 1);
+  const [, dt, dx, dy] = face.corrections[at];
+  const theta = -(k - face.n0) * STEP + face.alpha + dt;
+  const facing = Math.cos(theta);
+  if (facing < 0.02) return null;
+  const point = (u, w) => {
+    const [x, y] = toCrop(theta, u, w * Math.cos(face.tilt), face.r0 + w * Math.sin(face.tilt));
+    return [x + dx, y + dy];
+  };
+  const [u0, w0, u1, w1] = face.bounds;
+  const corners = [[u0, w0], [u1, w0], [u1, w1], [u0, w1]];
+  const on = corners.map(([u, w]) => point(u, w));
+  return {
+    face,
+    facing,
+    opacity: smoothstep(PRINT_FADE[0], PRINT_FADE[1], facing) * INK_OPACITY,
+    inverse: invert3(homography(corners, on)),
+    box: [
+      Math.min(...on.map((p) => p[0])),
+      Math.min(...on.map((p) => p[1])),
+      Math.max(...on.map((p) => p[0])),
+      Math.max(...on.map((p) => p[1])),
+    ],
+  };
+}
+
+/**
+ * A face's ink over a raster: `scale` output pixels per crop pixel, with (ox, oy)
+ * the output's origin in the crop. Each pixel is a mean of samples through the
+ * homography, more of them across the face the more it is turned away, so the type
+ * narrows without shimmering.
+ */
+function coverage(placed, scale, ox, oy, outW, outH) {
+  const { face, inverse: m, box, facing } = placed;
+  const x0 = Math.max(Math.floor((box[0] - ox) * scale) - 1, 0);
+  const y0 = Math.max(Math.floor((box[1] - oy) * scale) - 1, 0);
+  const x1 = Math.min(Math.ceil((box[2] - ox) * scale) + 1, outW);
+  const y1 = Math.min(Math.ceil((box[3] - oy) * scale) + 1, outH);
+  const W = x1 - x0;
+  const H = y1 - y0;
+  if (W <= 0 || H <= 0) return null;
+  const out = new Float32Array(W * H);
+  const nx = Math.min(Math.ceil(3.5 / (scale * Math.max(facing, 0.12))), 16);
+  const ny = Math.min(Math.ceil(3.5 / scale), 6);
+  const weight = 1 / (nx * ny * 255);
+  const { width, height, ink, u0, w0 } = face;
+  for (let py = 0; py < H; py++) {
+    for (let px = 0; px < W; px++) {
+      let total = 0;
+      for (let sy = 0; sy < ny; sy++) {
+        const cy = oy + (y0 + py + (sy + 0.5) / ny) / scale;
+        for (let sx = 0; sx < nx; sx++) {
+          const cx = ox + (x0 + px + (sx + 0.5) / nx) / scale;
+          const d = m[6] * cx + m[7] * cy + m[8];
+          const ix = Math.floor(((m[0] * cx + m[1] * cy + m[2]) / d - u0) * ARTWORK_SCALE);
+          const iy = Math.floor(((m[3] * cx + m[4] * cy + m[5]) / d - w0) * ARTWORK_SCALE);
+          if (ix >= 0 && iy >= 0 && ix < width && iy < height) total += ink[iy * width + ix];
+        }
+      }
+      out[py * W + px] = total * weight;
+    }
+  }
+  return { x0, y0, W, H, data: out };
+}
+
+/** Fills the gaps in a sparse field, coarsest level first (push-pull). */
+function pushPull(values, weights, W, H) {
+  const levels = [{ W, H, values, weights }];
+  while (levels[levels.length - 1].W > 1 || levels[levels.length - 1].H > 1) {
+    const f = levels[levels.length - 1];
+    const cw = Math.max(f.W >> 1, 1);
+    const ch = Math.max(f.H >> 1, 1);
+    const cv = new Float32Array(cw * ch);
+    const cs = new Float32Array(cw * ch);
+    for (let y = 0; y < f.H; y++) {
+      const yy = Math.min(y >> 1, ch - 1);
+      for (let x = 0; x < f.W; x++) {
+        const c = yy * cw + Math.min(x >> 1, cw - 1);
+        cv[c] += f.values[y * f.W + x] * f.weights[y * f.W + x];
+        cs[c] += f.weights[y * f.W + x];
+      }
+    }
+    for (let i = 0; i < cv.length; i++) {
+      if (cs[i] > 0) cv[i] /= cs[i];
+      cs[i] = Math.min(cs[i], 1);
+    }
+    levels.push({ W: cw, H: ch, values: cv, weights: cs });
+  }
+  for (let l = levels.length - 2; l >= 0; l--) {
+    const f = levels[l];
+    const c = levels[l + 1];
+    for (let y = 0; y < f.H; y++) {
+      const fy = Math.min(Math.max((y + 0.5) / 2 - 0.5, 0), c.H - 1);
+      const y0 = Math.floor(fy);
+      const y1 = Math.min(y0 + 1, c.H - 1);
+      const ty = fy - y0;
+      for (let x = 0; x < f.W; x++) {
+        const fx = Math.min(Math.max((x + 0.5) / 2 - 0.5, 0), c.W - 1);
+        const x0 = Math.floor(fx);
+        const x1 = Math.min(x0 + 1, c.W - 1);
+        const tx = fx - x0;
+        const up =
+          (c.values[y0 * c.W + x0] * (1 - tx) + c.values[y0 * c.W + x1] * tx) * (1 - ty) +
+          (c.values[y1 * c.W + x0] * (1 - tx) + c.values[y1 * c.W + x1] * tx) * ty;
+        const w = Math.min(f.weights[y * f.W + x], 1);
+        f.values[y * f.W + x] = f.values[y * f.W + x] * w + up * (1 - w);
+      }
+    }
+  }
+  return levels[0].values;
+}
+
+/** Box blur over a small field. */
+function blurField(src, W, H, r) {
+  const tmp = new Float32Array(W * H);
+  const out = new Float32Array(W * H);
+  for (let y = 0; y < H; y++) {
+    let s = 0;
+    for (let x = -r; x <= r; x++) s += src[y * W + Math.min(Math.max(x, 0), W - 1)];
+    for (let x = 0; x < W; x++) {
+      tmp[y * W + x] = s / (2 * r + 1);
+      s += src[y * W + Math.min(x + r + 1, W - 1)] - src[y * W + Math.max(x - r, 0)];
+    }
+  }
+  for (let x = 0; x < W; x++) {
+    let s = 0;
+    for (let y = -r; y <= r; y++) s += tmp[Math.min(Math.max(y, 0), H - 1) * W + x];
+    for (let y = 0; y < H; y++) {
+      out[y * W + x] = s / (2 * r + 1);
+      s += tmp[Math.min(y + r + 1, H - 1) * W + x] - tmp[Math.max(y - r, 0) * W + x];
+    }
+  }
+  return out;
+}
+
+/**
+ * Paints the film's smear of the print out of the frost: everything within reach
+ * of the ink is replaced by what the clean frost around it says should be there.
+ * The frost is smooth, so this leaves nothing to see.
+ */
+function erasePrint(rgb, alpha, placed) {
+  const margin = ERASE_RADIUS + ERASE_FEATHER + 10;
+  const cover = coverage(placed, 1, 0, 0, CW, CH);
+  if (!cover) return;
+  const x0 = Math.max(cover.x0 - margin, 0);
+  const y0 = Math.max(cover.y0 - margin, 0);
+  const x1 = Math.min(cover.x0 + cover.W + margin, CW);
+  const y1 = Math.min(cover.y0 + cover.H + margin, CH);
+  const W = x1 - x0;
+  const H = y1 - y0;
+
+  const near = new Float32Array(W * H);
+  for (let y = 0; y < cover.H; y++) {
+    for (let x = 0; x < cover.W; x++) {
+      if (cover.data[y * cover.W + x] > 0.02) near[(y + cover.y0 - y0) * W + x + cover.x0 - x0] = 1;
+    }
+  }
+  // Dilate by repeated thresholded blur (a square would do; this is a little rounder).
+  const grown = blurField(near, W, H, ERASE_RADIUS);
+  for (let i = 0; i < grown.length; i++) grown[i] = grown[i] > 0.003 ? 1 : 0;
+  const mask = blurField(grown, W, H, ERASE_FEATHER);
+
+  // The frost's own level, so the corners' seams and highlights do not get pulled in.
+  const lumas = [];
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const c = (y + y0) * CW + x + x0;
+      if (alpha[c] > 0.99 && mask[y * W + x] === 0) lumas.push(luma(rgb[c * 3], rgb[c * 3 + 1], rgb[c * 3 + 2]));
+    }
+  }
+  if (lumas.length < 64) return;
+  lumas.sort((a, b) => a - b);
+  const frost = lumas[lumas.length >> 1];
+
+  const weights = new Float32Array(W * H);
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const c = (y + y0) * CW + x + x0;
+      if (alpha[c] <= 0.99 || mask[y * W + x] > 0) continue;
+      if (Math.abs(luma(rgb[c * 3], rgb[c * 3 + 1], rgb[c * 3 + 2]) - frost) < 22) weights[y * W + x] = 1;
+    }
+  }
+  for (let channel = 0; channel < 3; channel++) {
+    const values = new Float32Array(W * H);
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) values[y * W + x] = rgb[((y + y0) * CW + x + x0) * 3 + channel];
+    }
+    const filled = blurField(pushPull(values, Float32Array.from(weights), W, H), W, H, 3);
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        const m = mask[y * W + x];
+        if (m <= 0) continue;
+        const c = ((y + y0) * CW + x + x0) * 3 + channel;
+        rgb[c] = rgb[c] * (1 - m) + filled[y * W + x] * m;
+      }
+    }
+  }
+}
+
+/** Lays the print on an output raster: RGBA, `scale` pixels per crop pixel. */
+function printInk(data, info, scale, box, prints) {
+  const { width, height, channels } = info;
+  for (const placed of prints) {
+    if (placed.opacity <= 0) continue;
+    const cover = coverage(placed, scale, box.left, box.top, width, height);
+    if (!cover) continue;
+    for (let y = 0; y < cover.H; y++) {
+      for (let x = 0; x < cover.W; x++) {
+        const a = cover.data[y * cover.W + x] * placed.opacity;
+        if (a <= 0) continue;
+        const p = ((y + cover.y0) * width + x + cover.x0) * channels;
+        for (let c = 0; c < 3; c++) data[p + c] = Math.round(data[p + c] * (1 - a) + INK[c] * a);
+      }
+    }
+  }
+}
+
+/* ---------------------------------------------------------------- the foot */
+
+/** The turntable's wander at frame n, interpolated between the printed faces. */
+function wanderAt(faces, n) {
+  const known = [];
+  for (const face of faces) {
+    const centre = face.corrections[(face.corrections.length - 1) >> 1][0];
+    let k = n;
+    while (k - centre > LOOP_LENGTH / 2) k -= LOOP_LENGTH;
+    while (k - centre < -LOOP_LENGTH / 2) k += LOOP_LENGTH;
+    const at = k - face.first;
+    if (at >= 0 && at < face.corrections.length) return face.corrections[at][1];
+    known.push(at < 0 ? face.corrections[0][1] : face.corrections[face.corrections.length - 1][1]);
+  }
+  return (known[0] + known[1]) / 2;
+}
+
+/** The four corners of the bottle's square foot, in frame n. */
+function footCorners(faces, n) {
+  const { n0, half, y, cx, cz } = LABEL.foot;
+  const theta = -(n - n0) * STEP + wanderAt(faces, n);
+  return [[1, 1], [1, -1], [-1, -1], [-1, 1]].map(([sx, sz]) =>
+    toCrop(theta, cx + sx * half, y, cz + sz * half),
+  );
+}
+
+/**
+ * The body's outline, drawn from the neck's measured corners down to the foot's
+ * geometric ones. Measured all the way down, it would swell wherever the foot's
+ * chamfer happens to flare, and shrink again as the flare passes.
+ */
+function bodyPolygon(faces, n, measured) {
+  return convexHull([...footCorners(faces, n), ...measured.filter(([, y]) => y < PLINTH_TOP - 60)]);
+}
+
+/** Holds the foot's highlights to the level of the frost around them. */
+function tameGlare(rgb, alpha) {
+  const levels = [];
+  for (let y = FROST_BAND[0]; y < FROST_BAND[1]; y += 2) {
+    for (let x = 0; x < CW; x += 2) {
+      const p = y * CW + x;
+      if (alpha[p] > 0.99) levels.push(luma(rgb[p * 3], rgb[p * 3 + 1], rgb[p * 3 + 2]));
+    }
+  }
+  if (!levels.length) return 225;
+  levels.sort((a, b) => a - b);
+  const frost = levels[Math.floor(levels.length * 0.6)];
+  const limit = frost + GLARE_MARGIN;
+  for (let y = GLARE_TOP; y < BODY_BOTTOM; y++) {
+    const ramp = smoothstep(GLARE_TOP, GLARE_FULL, y);
+    for (let x = 0; x < CW; x++) {
+      const p = y * CW + x;
+      if (!alpha[p]) continue;
+      const l = luma(rgb[p * 3], rgb[p * 3 + 1], rgb[p * 3 + 2]);
+      if (l <= limit) continue;
+      const held = limit + GLARE_KNEE * (1 - Math.exp(-(l - limit) / GLARE_KNEE));
+      const shift = (held - l) * ramp;
+      for (let c = 0; c < 3; c++) rgb[p * 3 + c] += shift;
+    }
+  }
+  return frost;
+}
+
+/** Smooths the flat areas of the picture, leaving anything with an edge alone. */
+function calmFlats(rgb) {
+  const lumas = new Float32Array(CW * CH);
+  for (let p = 0; p < CW * CH; p++) lumas[p] = luma(rgb[p * 3], rgb[p * 3 + 1], rgb[p * 3 + 2]);
+  const { lo, hi } = localRange(lumas, 2);
+  const channels = [0, 1, 2].map((c) => {
+    const channel = new Float32Array(CW * CH);
+    for (let p = 0; p < CW * CH; p++) channel[p] = rgb[p * 3 + c];
+    return gaussianBlur(channel, CALM_SIGMA);
+  });
+  for (let p = 0; p < CW * CH; p++) {
+    const t = 1 - smoothstep(CALM_RANGE[0], CALM_RANGE[1], hi[p] - lo[p]);
+    if (t <= 0) continue;
+    for (let c = 0; c < 3; c++) rgb[p * 3 + c] += (channels[c][p] - rgb[p * 3 + c]) * t;
+  }
+}
+
 /* --------------------------------------------------------------- plinth */
 
 /**
@@ -1015,6 +1471,10 @@ function buildPlinth(samples, plate) {
   const count = samples.length;
   const out = Buffer.alloc(CROP_BYTES);
   const values = [[], [], []];
+  // The middle of the plinth's top is under the bottle at every angle, so the film
+  // never once shows it: those pixels are filled from the plinth around them. Left
+  // as they are, the median there is frost, sitting under the frames.
+  const hidden = new Uint8Array(CW * CH);
   for (let y = 0; y < CH; y++) {
     for (let x = 0; x < CW; x++) {
       const p = y * CW + x;
@@ -1030,6 +1490,7 @@ function buildPlinth(samples, plate) {
         }
       }
       const useDark = values[0].length >= count * 0.2;
+      if (!useDark && y < PLINTH_LOGO.top - 8) hidden[p] = 1;
       for (let c = 0; c < 3; c++) {
         let list = values[c];
         if (!useDark) {
@@ -1040,6 +1501,19 @@ function buildPlinth(samples, plate) {
         out[p * 3 + c] = list[list.length >> 1];
       }
     }
+  }
+
+  // Grown a little: the pixels at the edge of what is hidden are half frost.
+  const hole = dilate(hidden, 6);
+  for (let c = 0; c < 3; c++) {
+    const channel = new Float32Array(CW * CH);
+    const weight = new Float32Array(CW * CH);
+    for (let p = 0; p < CW * CH; p++) {
+      channel[p] = out[p * 3 + c];
+      weight[p] = hole[p] ? 0 : 1;
+    }
+    const filled = pushPull(channel, weight, CW, CH);
+    for (let p = 0; p < CW * CH; p++) if (hole[p]) out[p * 3 + c] = Math.round(filled[p]);
   }
 
   // Its outline: the hull of the solid black mass, which leaves out the soft
@@ -1143,15 +1617,18 @@ async function buildPlinthImage(plinth, plate) {
 
 /* ------------------------------------------------------------------ run */
 
-async function writeSized(rgba, width, height, size, box, file) {
+async function writeSized(rgba, width, height, size, box, file, prints = null) {
   let image = sharp(rgba, { raw: { width, height, channels: 4 } });
   if (box) image = image.extract(box);
   const targetH = Math.round(((box ? box.height : height) * size) / CH);
-  const info = await image
-    .resize({ height: targetH, kernel: "lanczos3" })
+  image = image.resize({ height: targetH, kernel: "lanczos3" });
+  if (!prints?.length) return image.webp(WEBP).toFile(file);
+  // The print goes on after the resize, at this output's own resolution.
+  const { data, info } = await image.raw().toBuffer({ resolveWithObject: true });
+  printInk(data, info, size / CH, box, prints);
+  return sharp(data, { raw: { width: info.width, height: info.height, channels: info.channels } })
     .webp(WEBP)
     .toFile(file);
-  return info;
 }
 
 /**
@@ -1285,18 +1762,31 @@ async function loadPolygons(plate, drifts, plinth) {
   return polygons;
 }
 
-function renderFrame(n, plate, drift, polygons, plinth, focus, buffer) {
+function renderFrame(n, plate, drift, polygons, plinth, focus, faces, buffer) {
   const frame = readFrame(n, buffer);
   const rgb = relight(frame, plate, drift, { defocus: focus[n] });
   const alpha = new Float32Array(CW * CH);
   fillPolygon(polygons[n].cap, alpha);
-  fillPolygon(polygons[n].body, alpha);
+  fillPolygon(bodyPolygon(faces, n, polygons[n].body), alpha);
 
-  // Over the plinth only the frost and the bright highlights stay: the clear
-  // rim there just shows the plinth anyway, in a noisy, broken copy, and the
-  // film's own soft copy of the plinth's back edge would sit on top of the
-  // crisp static one. The static layer shows instead. The test runs on a
-  // smoothed copy so the cut itself has no jaggies.
+  // The print comes off here and goes back on, sharp, at each output's resolution.
+  const prints = [];
+  for (const face of faces) {
+    const placed = placeFace(face, n);
+    if (!placed) continue;
+    erasePrint(rgb, alpha, placed);
+    prints.push(placed);
+  }
+  calmFlats(rgb);
+  const frost = tameGlare(rgb, alpha);
+
+  // Over the plinth the outline alone decides what is bottle. A test on brightness
+  // would follow the film's blocks and the foot's glare, and draw a stepped edge
+  // that moves. What shows inside it is frost, or the plinth through the clear rim,
+  // which is lifted to the frost so the edge stays clean. Just above the plinth's
+  // back edge the film's own soft copy of that edge must not sit over the crisp
+  // static one, so there only what is brighter than the backdrop stays. The test
+  // runs on a smoothed copy so the cut itself has no jaggies.
   const bandTop = PLINTH_TOP - 8;
   const bandBottom = BODY_BOTTOM;
   const lumas = new Float32Array(CW * CH);
@@ -1312,7 +1802,12 @@ function renderFrame(n, plate, drift, polygons, plinth, focus, buffer) {
       const p = y * CW + x;
       if (!alpha[p]) continue;
       if (plinth.alpha[p] > 0) {
-        alpha[p] *= Math.min(Math.max((soft[p] - 125) / 35, 0), 1);
+        const l = luma(rgb[p * 3], rgb[p * 3 + 1], rgb[p * 3 + 2]);
+        const floor = frost - FOOT_DEPTH;
+        if (l < floor) {
+          const held = floor - FOOT_DEPTH_KNEE * (1 - Math.exp(-(floor - l) / FOOT_DEPTH_KNEE));
+          for (let c = 0; c < 3; c++) rgb[p * 3 + c] += held - l;
+        }
       } else if (y < PLINTH_TOP + 18) {
         // Just above the back edge: bright against the backdrop, or nothing.
         const lb =
@@ -1322,7 +1817,8 @@ function renderFrame(n, plate, drift, polygons, plinth, focus, buffer) {
       }
     }
   }
-  return toRgba(rgb, alpha);
+
+  return { rgba: toRgba(rgb, alpha), prints };
 }
 
 /** A Gaussian over just the rows [top, bottom) of a crop-sized field. */
@@ -1372,6 +1868,7 @@ async function main() {
   const polygons = await loadPolygons(plate, drifts, plinth);
   const plinthRgba = await buildPlinthImage(plinth, plate);
   const focus = measureFocus();
+  const faces = await loadFaces();
 
   const debug = process.env.BOTTLE_DEBUG;
   if (debug) {
@@ -1381,15 +1878,21 @@ async function main() {
     for (const part of debug.split(",")) {
       const film = Number(part);
       const n = film - LOOP_START;
-      const rgba = renderFrame(n, plate, driftField(drifts[n]), polygons, plinth, focus, buffer);
+      const { rgba, prints } = renderFrame(n, plate, driftField(drifts[n]), polygons, plinth, focus, faces, buffer);
       log(`[debug]  ${film} softness sigma ${focus[n].toFixed(2)}`);
-      const under = await sharp(plinthRgba, { raw: { width: CW, height: CH, channels: 4 } }).png().toBuffer();
-      const over = await sharp(rgba, { raw: { width: CW, height: CH, channels: 4 } }).png().toBuffer();
-      await sharp({ create: { width: CW, height: CH, channels: 3, background: STAGE } })
-        .composite([{ input: under }, { input: over }])
+      const size = SETS[0].size;
+      const whole = { left: 0, top: 0, width: CW, height: CH };
+      const webp = path.join(dir, `${film}.webp`);
+      const info = await writeSized(rgba, CW, CH, size, whole, webp, prints);
+      const under = await sharp(plinthRgba, { raw: { width: CW, height: CH, channels: 4 } })
+        .resize({ height: info.height, kernel: "lanczos3" })
+        .png()
+        .toBuffer();
+      await sharp({ create: { width: info.width, height: info.height, channels: 3, background: STAGE } })
+        .composite([{ input: under }, { input: await sharp(webp).png().toBuffer() }])
         .png()
         .toFile(path.join(dir, `${film}.png`));
-      log(`[debug]  ${film}.png`);
+      log(`[debug]  ${film}.png (${Math.round(info.size / 1024)} KB with no crop)`);
     }
     return;
   }
@@ -1431,12 +1934,12 @@ async function main() {
   for (let n = 0; n < LOOP_LENGTH; n++) {
     const wanted = SETS.filter((set) => n % Math.round(LOOP_LENGTH / set.frames) === 0);
     if (!wanted.length) continue;
-    const rgba = renderFrame(n, plate, driftField(drifts[n]), polygons, plinth, focus, buffer);
+    const { rgba, prints } = renderFrame(n, plate, driftField(drifts[n]), polygons, plinth, focus, faces, buffer);
     for (const set of wanted) {
       const index = Math.round((n * set.frames) / LOOP_LENGTH);
       const name = `${String(index).padStart(3, "0")}.webp`;
       pending.push(
-        writeSized(rgba, CW, CH, set.size, box, path.join(OUT, String(set.size), name)).then((info) => {
+        writeSized(rgba, CW, CH, set.size, box, path.join(OUT, String(set.size), name), prints).then((info) => {
           totals[set.size] += info.size;
         }),
       );

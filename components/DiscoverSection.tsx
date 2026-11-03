@@ -25,14 +25,14 @@ export default function DiscoverSection() {
     <section
       ref={ref}
       id="discover"
-      className="relative scroll-mt-16 overflow-hidden bg-linen py-28 sm:py-36 lg:py-44 short:py-20"
+      className="ground-wood relative scroll-mt-16 overflow-hidden bg-linen py-28 sm:py-36 lg:py-44 short:py-20"
     >
       <div className="safe-gutter mx-auto grid max-w-7xl grid-cols-1 items-center gap-20 px-6 sm:px-10 lg:grid-cols-[1.05fr_0.95fr] lg:gap-24 lg:px-16 short:grid-cols-[0.8fr_1fr] short:gap-10">
         <div className="relative mx-auto w-full max-w-md pb-24 sm:max-w-lg lg:max-w-none lg:pb-32 short:pb-16">
           <motion.div style={{ y: backY }} className="w-[78%]">
             <RevealImage
-              src="/images/editorial/lux.webp"
-              alt={ALT.luxury}
+              src="/images/editorial/glass.webp"
+              alt={ALT.candlelight}
               sizes="(min-width: 1024px) 34vw, 70vw"
               className="aspect-[3/4] w-full"
             />
@@ -45,10 +45,11 @@ export default function DiscoverSection() {
             className="absolute bottom-0 right-0 w-[64%] bg-linen p-2 shadow-[0_40px_90px_-40px_rgba(22,20,18,0.55)] sm:p-3"
           >
             <RevealImage
-              src="/images/editorial/boxx.webp"
-              alt={ALT.boxed}
+              src="/images/brochure/caviar-top.webp"
+              alt={ALT.caviarTop}
               sizes="(min-width: 1024px) 28vw, 58vw"
               delay={0.15}
+              imageClassName="object-contain"
               className="aspect-[3/2] w-full"
             />
           </motion.div>

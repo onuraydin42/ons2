@@ -11,18 +11,17 @@ import { useSiteEntered } from "@/components/SiteShell";
 import { ALT, DISCOVER_PAGE } from "@/data/site";
 
 type Media =
-  | { kind: "image"; src: string; alt: string; frame: string }
+  | { kind: "image"; src: string; alt: string; frame: string; cutOut?: boolean }
   | { kind: "bottle" };
 
 /* Each paragraph of the story is paired with the picture that tells the same
- * part of it: the drink, the purity, the bottle on display, the box and cap,
- * and the bottle as the brand itself. */
+ * part of it: the drink, the purity, the bottle on display, and the bottle and its
+ * box as the brand itself. */
 const MEDIA: Media[] = [
   { kind: "image", src: "/images/editorial/glass.webp", alt: ALT.candlelight, frame: "aspect-[3/4]" },
   { kind: "image", src: "/images/editorial/lux2.webp", alt: ALT.daylight, frame: "aspect-[4/3]" },
   { kind: "bottle" },
-  { kind: "image", src: "/images/editorial/boxx.webp", alt: ALT.boxed, frame: "aspect-[3/2]" },
-  { kind: "image", src: "/images/editorial/lux.webp", alt: ALT.luxury, frame: "aspect-[3/4]" },
+  { kind: "image", src: "/images/brochure/box.webp", alt: ALT.box, frame: "aspect-[4/5]", cutOut: true },
 ];
 
 function Chapter({ index, text, media }: { index: number; text: string; media: Media }) {
@@ -58,6 +57,7 @@ function Chapter({ index, text, media }: { index: number; text: string; media: M
             src={media.src}
             alt={media.alt}
             sizes="(min-width: 1024px) 40vw, 90vw"
+            imageClassName={media.cutOut ? "object-contain" : "object-cover"}
             className={`${media.frame} w-full`}
           />
         )}
@@ -87,7 +87,7 @@ function Chapter({ index, text, media }: { index: number; text: string; media: M
  */
 export default function DiscoverStory() {
   return (
-    <section className="relative bg-linen pb-16 pt-36 sm:pt-44 short:pt-24">
+    <section className="ground-wood relative bg-linen pb-16 pt-36 sm:pt-44 short:pt-24">
       <div className="safe-gutter mx-auto max-w-7xl px-6 sm:px-10 lg:px-16">
         <div className="mx-auto max-w-3xl text-center">
           <Reveal as="p" className="text-[12px] uppercase tracking-widest3 text-gold-deep">

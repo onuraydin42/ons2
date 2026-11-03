@@ -55,8 +55,6 @@ export const metadata: Metadata = {
     "ultra premium vodka",
     "12-time distilled vodka",
     "super flint decanter",
-    "Shou sugi ban",
-    "Yakisugi",
     "luxury vodka New York",
   ],
   // Canonical URL and share card are set per page (lib/seo.ts): set here,

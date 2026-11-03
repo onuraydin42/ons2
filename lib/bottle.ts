@@ -19,15 +19,15 @@ export const BOTTLE = {
       "width": 213,
       "height": 574
     },
-    "1240": {
+    "1550": {
       "frames": 618,
-      "width": 366,
-      "height": 988
+      "width": 458,
+      "height": 1235
     }
   },
 } as const;
 
 /** New with every build: the files are cached as immutable. */
-export const BOTTLE_VERSION = "mvy7t25p";
+export const BOTTLE_VERSION = "mw03t4z9";
 
 export const bottleAsset = (path: string) => `/media/bottle/${path}?v=${BOTTLE_VERSION}`;

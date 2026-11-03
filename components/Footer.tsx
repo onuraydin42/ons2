@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 
+import CharGround from "@/components/CharGround";
 import { Reveal } from "@/components/motion/Reveal";
 import SocialIcons from "@/components/SocialIcons";
 import { ALT, FOOTER_LEGAL, FOOTER_LINKS, copyright } from "@/data/site";
@@ -16,14 +17,14 @@ const LEGAL_LINK =
   "py-2.5 text-ivory underline decoration-gold-light/60 underline-offset-4 transition-colors duration-500 hover:text-gold-light active:text-gold-light";
 
 /**
- * The live footer: its four links, the two profiles, the small print. The page
- * closes on char, the one ground dark enough to carry the lockup in its foil.
+ * The live footer: its links, the two profiles, the small print. The page closes
+ * on the timber, the one ground dark enough to carry the lockup in its foil.
  */
 export default function Footer() {
   const glide = useGlideLink();
 
   return (
-    <footer className="relative overflow-hidden bg-char [&_:focus-visible]:outline-gold-light">
+    <CharGround as="footer" className="overflow-hidden [&_:focus-visible]:outline-gold-light">
       <div className="safe-gutter relative mx-auto max-w-7xl px-6 pb-[max(2.5rem,env(safe-area-inset-bottom,0px))] pt-20 sm:px-10 sm:pt-24 lg:px-16">
         <Reveal className="flex flex-col items-center text-center">
           <Image src={LOGO_SRC} alt={ALT.logo} width={LOGO_WIDTH} height={LOGO_HEIGHT} className="h-28 w-auto sm:h-32" />
@@ -77,6 +78,6 @@ export default function Footer() {
           </p>
         </div>
       </div>
-    </footer>
+    </CharGround>
   );
 }

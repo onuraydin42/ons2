@@ -73,13 +73,38 @@ never drifts from what is on disk.
   so the script also emits `logo-mark.png` (monogram only); the name is then set
   in type beside it.
 
+### The brochure
+
+`npm i --no-save mupdf && node scripts/prepare-brochure.mjs "<FLUID OUNCE 2026.pdf>"`
+cuts the product photographs out of the brand's 2026 brochure into
+`public/images/brochure/`. Only pages 9, 10, 11, 12, 13, 14, 19, 20, 21, 24 and 27
+are cleared for use, and the script refuses any other. The brochure's words live in
+`data/site.ts` with the rest of the copy, word for word: the mission, the wholesale
+page, the label, "We Don't Hide In Cocktails", "Recycle Responsibly".
+
+### The timber
+
+`node scripts/build-wood.mjs` draws the burnt timber from nothing, as a lit height
+field that tiles in both directions: `public/images/wood/char.webp` for the dark
+sections, `grain.webp` (its shadows only) laid very lightly over the stone grounds
+through `.ground-wood`, and `light.webp` (its ridges only), which shows around the
+cursor on `.char-ground` sections as a lamp would.
+
 ### The turning bottle
 
 `npm run build-bottle` turns `images2/rotate.mp4` — the bottle on its plinth,
 filmed against a grey studio sweep — into the bottle alone: one transparent WebP
-for every film frame of one revolution (`public/media/bottle/1240/`, and every
+for every film frame of one revolution (`public/media/bottle/1550/`, and every
 other frame, smaller, in `/720/` for thumbnails and slower devices), plus the
 plinth as a single still underneath them.
+
+The film cannot hold the bottle's small type, so the print is redrawn. The bottle
+is rigid and the camera is fixed: `scripts/fit-bottle-label.mjs` fits the camera,
+the turn and the printed faces to the film (`scripts/bottle-label.json`, checked
+in), the film's smear is painted out of the frost, and the vector artwork in
+`images2/bottle-label-*.svg` is laid back on through the fitted geometry, at each
+output's own resolution. The foot's outline comes from the same geometry, because
+its glass chamfer flares white past the frost at some angles only.
 
 The camera, backdrop and plinth never move, so the empty studio is recovered as
 a clean plate and every frame is relit against it onto linen (`STAGE` in the
@@ -211,7 +236,7 @@ adds the http -> https and apex -> www redirects.
   tapped button does not stay lit; buttons show an `active:` state instead.
 - Below `lg` the navbar's six links live behind a full-screen menu. The cocktails
   also move with a sideways swipe.
-- A phone gets the same 1240px bottle frames as a desktop: its screen has as many
+- A phone gets the same 1550px bottle frames as a desktop: its screen has as many
   pixels to fill. The 720px set (309 frames) goes to a small placement, to a 3G
   connection and to a device reporting 2 GB of memory or less; a browser asked to
   save data, or on 2G, keeps the still. Frames download coarse revolution first, so

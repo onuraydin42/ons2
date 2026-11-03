@@ -180,6 +180,8 @@ export default function Hero() {
   return (
     <section ref={ref} id="home" aria-label="FLUID OUNCE" className="h-hero relative bg-linen">
       <div className="hero-stage h-stage-full sticky top-0 overflow-hidden bg-linen">
+        <div aria-hidden className="hero-wood" />
+
         {/* Everything but the light, in the part of the stage that is always on
             screen. No stacking context of its own: the layers inside it and the
             light above them share the stage's. */}

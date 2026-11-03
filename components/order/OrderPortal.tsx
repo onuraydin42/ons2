@@ -54,7 +54,7 @@ export default function OrderPortal() {
   };
 
   return (
-    <main className="min-h-stage relative bg-porcelain">
+    <main className="ground-wood min-h-stage relative bg-porcelain">
       {/* A soft pool of light, the same warmth as the front door. */}
       <div
         aria-hidden

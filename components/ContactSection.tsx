@@ -3,7 +3,7 @@
 import { Reveal, RevealGroup, RevealItem } from "@/components/motion/Reveal";
 import RevealHeading from "@/components/motion/RevealHeading";
 import SocialIcons from "@/components/SocialIcons";
-import { CONTACT } from "@/data/site";
+import { CONTACT, INSTAGRAM, SITE_URL } from "@/data/site";
 
 /* A text optical size rather than the display cut the size would pick: the
  * hairlines — the hyphens in the phone number above all — stay solid enough
@@ -14,7 +14,7 @@ const LINE =
 /** Contact — the live site's three lines: email, phone, New York. */
 export default function ContactSection() {
   return (
-    <section id="contact" className="relative scroll-mt-16 bg-linen py-28 sm:py-36 lg:py-40 short:py-20">
+    <section id="contact" className="ground-wood relative scroll-mt-16 bg-linen py-28 sm:py-36 lg:py-40 short:py-20">
       <div className="safe-gutter mx-auto max-w-7xl px-6 sm:px-10 lg:px-16">
         <div className="grid gap-16 lg:grid-cols-[0.8fr_1.2fr] lg:gap-24 short:grid-cols-[0.8fr_1.2fr] short:gap-10">
           <div>
@@ -27,6 +27,22 @@ export default function ContactSection() {
             </Reveal>
             <Reveal delay={0.12} className="mt-10">
               <SocialIcons />
+              <p className="mt-6 text-[13.5px] leading-relaxed text-ink-soft">
+                {CONTACT.instagramLine}
+                <br />
+                <a
+                  href={INSTAGRAM.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-block py-1 text-[12px] uppercase tracking-widest2 text-ink transition-colors duration-500 hover:text-ivory active:text-ivory"
+                >
+                  {CONTACT.instagramHandle}
+                </a>
+                <br />
+                <a href={SITE_URL} className="inline-block py-1 transition-colors duration-500 hover:text-ivory active:text-ivory">
+                  {CONTACT.website}
+                </a>
+              </p>
             </Reveal>
           </div>
 

@@ -12,7 +12,7 @@ import { CONTENTS_LABEL, type LegalDocument } from "@/data/legal";
  */
 export default function LegalPage({ document }: { document: LegalDocument }) {
   return (
-    <main id="top" className="bg-porcelain">
+    <main id="top" className="ground-wood bg-porcelain">
       <Navbar />
 
       <article className="safe-gutter relative mx-auto max-w-3xl px-6 pb-28 pt-36 sm:px-10 sm:pb-36 sm:pt-44 short:pt-24">

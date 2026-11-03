@@ -81,7 +81,7 @@ export default function AgeGate({ open, onEnter }: { open: boolean; onEnter: () 
           exit={{ opacity: 0, scale: 1.04, ...(blurOut ? { filter: "blur(6px)" } : {}), pointerEvents: "none" }}
           transition={{ duration: 1.1, ease: EASE_OUT_EXPO }}
           data-lenis-prevent
-          className="fixed inset-0 z-[999] flex overflow-y-auto overscroll-contain bg-porcelain px-4 py-6 sm:px-5 sm:py-10 short:py-3"
+          className="fixed inset-0 z-[999] flex overflow-y-auto overscroll-contain bg-char px-4 py-6 sm:px-5 sm:py-10 short:py-3"
         >
           <GateBackdrop />
 

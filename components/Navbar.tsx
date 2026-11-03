@@ -157,7 +157,7 @@ export default function Navbar() {
       <header
         className={`fixed inset-x-0 top-0 z-50 border-b transition-[background-color,border-color,backdrop-filter] duration-700 ease-lux ${
           lifted
-            ? "border-ink/10 bg-porcelain/95 fine:bg-porcelain/85 fine:backdrop-blur-xl"
+            ? "border-ink/10 bg-porcelain fine:bg-porcelain/85 fine:backdrop-blur-xl"
             : "border-transparent bg-transparent"
         }`}
       >

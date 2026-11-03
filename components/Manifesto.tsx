@@ -49,7 +49,7 @@ export default function Manifesto() {
   const words = MANIFESTO.split(" ");
 
   return (
-    <section ref={ref} className="safe-gutter relative bg-porcelain px-6 py-28 sm:px-10 sm:py-36 lg:py-44 short:py-20">
+    <section ref={ref} className="ground-wood safe-gutter relative bg-porcelain px-6 py-28 sm:px-10 sm:py-36 lg:py-44 short:py-20">
       <div className="mx-auto max-w-5xl text-center">
         <Image src={MARK_INK_SRC} alt="" width={MARK_WIDTH} height={MARK_HEIGHT} className="mx-auto h-14 w-auto sm:h-16" />
 

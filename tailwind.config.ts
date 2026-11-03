@@ -18,37 +18,41 @@ const config: Config = {
         flank: { raw: "(min-width: 1024px), (orientation: landscape)" },
         /* A phone on its side: too short to stack anything. */
         short: { raw: "(orientation: landscape) and (max-height: 520px)" },
+        /* A laptop's window once the browser's bars are out of it: wide enough to pin
+         * the showcase, too low for its full type. */
+        low: { raw: "(min-width: 1024px) and (min-height: 521px) and (max-height: 760px)" },
         /* A mouse. Glass effects that a phone would pay for on every frame of a
          * scroll live behind this. */
         fine: { raw: "(pointer: fine)" },
       },
       colors: {
-        /* Warm stone mid-tones. Linen is the stage: the bottle's glass is relit
-         * onto it (STAGE in scripts/build-bottle.mjs — keep the two equal), and
-         * every bottle stands on it. Porcelain is the alternate ground; ivory
-         * the light surface for cards and fields; char the footer's dark. */
+        /* Smoked stone, taken a little toward the grey-green of burnt timber. Linen
+         * is the stage: the bottle's glass is relit onto it (STAGE in
+         * scripts/build-bottle.mjs — keep the two equal), and every bottle stands
+         * on it. Porcelain is the alternate ground; ivory the light surface for
+         * cards and fields; char the timber of the dark sections. */
         ivory: "#F1ECE3",
-        porcelain: "#AB9F8C",
-        linen: "#9F937F",
-        char: "#1B1815",
+        porcelain: "#A19A89",
+        linen: "#938C7B",
+        char: "#141311",
         /* Charred-wood ink for type. Soft and muted both clear WCAG AA on
          * porcelain and linen; faint is for placeholders on ivory and for
          * decoration only. */
         ink: {
-          DEFAULT: "#141210",
-          soft: "#211D19",
-          muted: "#332D27",
-          faint: "#5B5348",
+          DEFAULT: "#12110F",
+          soft: "#1E1B17",
+          muted: "#2B2621",
+          faint: "#544E43",
         },
         /* The foil. On these mid-tones the true foil colour all but disappears,
          * so each surface takes the shade that reads on it:
-         *   DEFAULT  the foil itself, for ivory cards and the dark footer
-         *   light    champagne, for rules and sparks on the stone grounds
+         *   DEFAULT  the foil itself, for ivory cards and the charred sections
+         *   light    champagne, for type on char, and rules on the stone grounds
          *   deep     dark bronze, for small type on the stone grounds */
         gold: {
-          DEFAULT: "#A8882C",
-          deep: "#382B0B",
-          light: "#E3CC8A",
+          DEFAULT: "#B8923A",
+          deep: "#2E2308",
+          light: "#E8D394",
         },
       },
       fontFamily: {

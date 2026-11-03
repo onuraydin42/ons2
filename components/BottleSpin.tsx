@@ -31,8 +31,8 @@ export const BOTTLE_ASPECT = BOTTLE.aspect;
 
 type FrameSet = keyof typeof BOTTLE.sets;
 
-const PLINTH = bottleAsset("1240/plinth.webp");
-const POSTER = bottleAsset("1240/000.webp");
+const PLINTH = bottleAsset("1550/plinth.webp");
+const POSTER = bottleAsset("1550/000.webp");
 
 /* What the browser will say about the connection and the device. Safari says
  * nothing, and is then taken to be able to carry the full set. */
@@ -51,12 +51,12 @@ const keepStill = () => {
  * the size, is for placements too small to tell, and for a device or connection
  * that would struggle to carry the full one. */
 const frameSet = (thumbnail: boolean): FrameSet =>
-  thumbnail || connection()?.effectiveType === "3g" || (deviceMemory() ?? 8) <= 2 ? "720" : "1240";
+  thumbnail || connection()?.effectiveType === "3g" || (deviceMemory() ?? 8) <= 2 ? "720" : "1550";
 const frameUrl = (set: FrameSet, index: number) =>
   bottleAsset(`${set}/${String(index).padStart(3, "0")}.webp`);
 
 /** The film's own speed: a new frame every other refresh on a 60Hz screen. */
-const IDLE_SECONDS_PER_TURN = BOTTLE.sets["1240"].frames / 30;
+const IDLE_SECONDS_PER_TURN = BOTTLE.sets["1550"].frames / 30;
 /** Revolutions added over the whole scroll range of the opening. */
 const SCROLL_TURNS = 1;
 /** How many frames download at once. */
